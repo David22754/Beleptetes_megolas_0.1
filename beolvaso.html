@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>QR Beolvasó (Firebase)</title>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<style>
+  body{ margin:0; background:#14171A; color:#F1EEE7; font-family:sans-serif; text-align:center; padding:15px; }
+  #reader{ width:100%; max-width:400px; margin:0 auto; background:#000; border-radius:12px; overflow:hidden; }
+  .msg{ margin-top:15px; padding:15px; border-radius:10px; font-size:1.2rem; font-weight:bold; display:none; }
+  .msg.success{ background:rgba(111,162,135,.2); color:#6FA287; border:2px solid #6FA287; }
+  .msg.error{ background:rgba(193,102,107,.2); color:#C1666B; border:2px solid #C1666B; }
+</style>
+</head>
+<body>
+
+<h2>Mobil QR Beolvasó</h2>
+<div id="reader"></div>
+<div id="feedback" class="msg"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAzXfTNTXJyf0DkdWejm6UQOv90dn67NnA",
+    authDomain: "belepteto-app.firebaseapp.com",
+    projectId: "belepteto-app",
+    storageBucket: "belepteto-app.firebasestorage.app",
+    messagingSenderId: "1017062734530",
+    appId: "1:1017062734530:web:8267995d46729cc296995b"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  let isProcessing = false;
+
+  async function onScanSuccess(decodedText) {
+    if (isProcessing) return;
+    isProcessing = true;
+
+    const code = decodedText.trim().toUpperCase();
+    const fb = document.getElementById('feedback');
+    fb.style.display = 'block';
+
+    try {
+      const ref = doc(db, "participants", code);
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.checkedIn) {
+          fb.className = 'msg error';
+          fb.innerHTML = `Már bent van!<br>${data.name}`;
+        } else {
+          await updateDoc(ref, {
+            checkedIn: true,
+            checkedInAt: new Date().toISOString()
+          });
+          fb.className = 'msg success';
+          fb.innerHTML = `SIKERES BELÉPÉS!<br>${data.name}`;
+        }
+      } else {
+        fb.className = 'msg error';
+        fb.innerHTML = `Érvénytelen kód:<br>${code}`;
+      }
+    } catch (e) {
+      fb.className = 'msg error';
+      fb.textContent = "Hiba a csatlakozás során!";
+    }
+
+    setTimeout(() => {
+      fb.style.display = 'none';
+      isProcessing = false;
+    }, 2500);
+  }
+
+  const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+  html5QrcodeScanner.render(onScanSuccess);
+</script>
+</body>
+</html>
