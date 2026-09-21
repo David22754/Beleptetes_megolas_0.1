@@ -2,26 +2,183 @@
 <html lang="hu">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>QR Beolvasó (Firebase)</title>
-<script src="https://unpkg.com/html5-qrcode"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#14171A">
+<title>QR Beolvasó</title>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
-  body{ margin:0; background:#14171A; color:#F1EEE7; font-family:sans-serif; text-align:center; padding:15px; }
-  #reader{ width:100%; max-width:400px; margin:0 auto; background:#000; border-radius:12px; overflow:hidden; }
-  .msg{ margin-top:15px; padding:15px; border-radius:10px; font-size:1.2rem; font-weight:bold; display:none; }
-  .msg.success{ background:rgba(111,162,135,.2); color:#6FA287; border:2px solid #6FA287; }
-  .msg.error{ background:rgba(193,102,107,.2); color:#C1666B; border:2px solid #C1666B; }
+  :root{
+    --bg:#14171A;
+    --panel:#1D2227;
+    --line:#2C333A;
+    --text:#F1EEE7;
+    --muted:#8E979F;
+    --ok:#6FA287;
+    --err:#C1666B;
+    --warn:#D2A85A;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+    padding:max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+    overflow:hidden;
+  }
+  header{ width:100%; max-width:440px; display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+  h1{ font-size:1.25rem; font-weight:650; margin:0; letter-spacing:.2px; }
+  .status{ display:flex; align-items:center; gap:8px; font-size:.85rem; color:var(--muted); }
+  .dot{ width:9px; height:9px; border-radius:50%; background:var(--muted); transition:background .3s, box-shadow .3s; }
+  .dot.live{ background:var(--ok); box-shadow:0 0 0 0 rgba(111,162,135,.6); animation:pulse 1.8s infinite; }
+  @keyframes pulse{ 70%{ box-shadow:0 0 0 8px rgba(111,162,135,0);} 100%{ box-shadow:0 0 0 0 rgba(111,162,135,0);} }
+
+  /* Viewfinder */
+  .finder{
+    position:relative; width:100%; max-width:440px; aspect-ratio:1/1;
+    background:#000; border-radius:22px; overflow:hidden;
+    border:1px solid var(--line);
+  }
+  #reader{ position:absolute; inset:0; }
+  #reader video{ width:100% !important; height:100% !important; object-fit:cover; }
+  #reader img{ display:none; }
+
+  .vignette{
+    position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(circle at center, transparent 45%, rgba(0,0,0,.55) 100%);
+  }
+  .frame{ position:absolute; inset:14%; pointer-events:none; transition:inset .35s ease; }
+  .frame i{
+    position:absolute; width:34px; height:34px; border:4px solid var(--text);
+    transition:border-color .25s;
+  }
+  .frame i:nth-child(1){ top:0; left:0; border-right:0; border-bottom:0; border-top-left-radius:14px; }
+  .frame i:nth-child(2){ top:0; right:0; border-left:0; border-bottom:0; border-top-right-radius:14px; }
+  .frame i:nth-child(3){ bottom:0; left:0; border-right:0; border-top:0; border-bottom-left-radius:14px; }
+  .frame i:nth-child(4){ bottom:0; right:0; border-left:0; border-top:0; border-bottom-right-radius:14px; }
+
+  .scanline{
+    position:absolute; left:0; right:0; height:3px; top:0;
+    background:linear-gradient(90deg, transparent, var(--ok) 20%, var(--ok) 80%, transparent);
+    box-shadow:0 0 18px 4px rgba(111,162,135,.55);
+    border-radius:2px;
+    animation:sweep 2.2s ease-in-out infinite alternate;
+  }
+  .scanline::after{
+    content:""; position:absolute; left:0; right:0; top:-46px; height:46px;
+    background:linear-gradient(to top, rgba(111,162,135,.22), transparent);
+  }
+  @keyframes sweep{ from{ top:2%; } to{ top:calc(98% - 3px); } }
+
+  .finder.locked .scanline{ animation-play-state:paused; opacity:0; transition:opacity .2s; }
+  .finder.locked .frame{ inset:9%; }
+  .finder.locked.ok  .frame i{ border-color:var(--ok); }
+  .finder.locked.err .frame i{ border-color:var(--err); }
+  .finder.locked.warn .frame i{ border-color:var(--warn); }
+
+  .flash{ position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; }
+  .flash.go{ animation:flash .45s ease-out; }
+  @keyframes flash{ 0%{ opacity:.5; } 100%{ opacity:0; } }
+
+  .hint{ margin:18px 0 0; color:var(--muted); font-size:.95rem; text-align:center; min-height:1.4em; }
+
+  /* Placeholder / error before camera start */
+  .camerr{
+    position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; padding:24px; text-align:center; background:var(--panel); color:var(--muted); z-index:2;
+  }
+  .camerr.show{ display:flex; }
+
+  /* Result sheet */
+  .backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,.5); opacity:0; pointer-events:none; transition:opacity .25s;
+  }
+  .backdrop.show{ opacity:1; pointer-events:auto; }
+  .sheet{
+    position:fixed; left:0; right:0; bottom:0; margin:0 auto; max-width:480px;
+    background:var(--panel); border:1px solid var(--line); border-bottom:0;
+    border-radius:24px 24px 0 0;
+    padding:22px 22px max(22px, env(safe-area-inset-bottom));
+    transform:translateY(105%); transition:transform .32s cubic-bezier(.2,.9,.25,1);
+  }
+  .sheet.show{ transform:translateY(0); }
+  .badge{
+    display:inline-flex; align-items:center; gap:8px; font-size:.9rem; font-weight:600;
+    padding:6px 12px; border-radius:999px; margin-bottom:14px;
+  }
+  .badge svg{ width:16px; height:16px; }
+  .sheet.ok   .badge{ background:rgba(111,162,135,.16); color:var(--ok); }
+  .sheet.warn .badge{ background:rgba(210,168,90,.16);  color:var(--warn); }
+  .sheet.err  .badge{ background:rgba(193,102,107,.16); color:var(--err); }
+  .name{ font-size:1.7rem; font-weight:700; line-height:1.15; margin:0 0 6px; word-break:break-word; }
+  .code{ font-size:.95rem; color:var(--muted); margin:0 0 20px; word-break:break-all; }
+  .actions{ display:flex; gap:12px; }
+  button{
+    flex:1; font:inherit; font-weight:650; font-size:1.05rem; border:0; border-radius:14px;
+    padding:16px 14px; cursor:pointer; transition:transform .1s, opacity .2s;
+  }
+  button:active{ transform:scale(.97); }
+  button:disabled{ opacity:.55; cursor:default; }
+  .btn-ok{ background:var(--ok); color:#0E1A14; }
+  .btn-ghost{ background:transparent; color:var(--text); border:1px solid var(--line); }
+  .hidden{ display:none !important; }
+
+  /* Success stamp */
+  .stamp{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    pointer-events:none; opacity:0;
+  }
+  .stamp svg{ width:38%; height:38%; }
+  .stamp circle,.stamp path{ fill:none; stroke:var(--ok); stroke-width:5; stroke-linecap:round; stroke-linejoin:round; }
+  .stamp.go{ animation:stampIn 1.3s ease forwards; }
+  .stamp.go circle{ stroke-dasharray:190; stroke-dashoffset:190; animation:draw .5s .05s ease forwards; }
+  .stamp.go path{ stroke-dasharray:60; stroke-dashoffset:60; animation:draw .35s .45s ease forwards; }
+  @keyframes draw{ to{ stroke-dashoffset:0; } }
+  @keyframes stampIn{ 0%{opacity:0; transform:scale(.7);} 15%{opacity:1; transform:scale(1);} 80%{opacity:1;} 100%{opacity:0;} }
+
+  @media (prefers-reduced-motion: reduce){
+    .scanline{ animation:none; top:50%; }
+    .dot.live{ animation:none; }
+    .sheet,.backdrop,.frame{ transition:none; }
+  }
 </style>
 </head>
 <body>
 
-<h2>Mobil QR Beolvasó</h2>
-<div id="reader"></div>
-<div id="feedback" class="msg"></div>
+<header>
+  <h1>QR Beolvasó</h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText">Indítás…</span></div>
+</header>
+
+<div class="finder" id="finder">
+  <div id="reader"></div>
+  <div class="vignette"></div>
+  <div class="frame"><i></i><i></i><i></i><i></i><div class="scanline"></div></div>
+  <div class="flash" id="flash"></div>
+  <div class="stamp" id="stamp">
+    <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30"/><path d="M19 33 l9 9 l18 -19"/></svg>
+  </div>
+  <div class="camerr" id="camerr">
+    <div id="camerrText">A kamera nem érhető el.</div>
+    <button class="btn-ok" id="retryCam" style="flex:none">Újrapróbálom</button>
+  </div>
+</div>
+<p class="hint" id="hint">Tartsd a QR kódot a keretbe</p>
+
+<div class="backdrop" id="backdrop"></div>
+<div class="sheet" id="sheet" role="dialog" aria-live="polite">
+  <div class="badge" id="badge"></div>
+  <p class="name" id="pName"></p>
+  <p class="code" id="pCode"></p>
+  <div class="actions">
+    <button class="btn-ghost" id="btnCancel">Mégse</button>
+    <button class="btn-ok" id="btnAccept">Elfogad</button>
+  </div>
+</div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAzXfTNTXJyf0DkdWejm6UQOv90dn67NnA",
@@ -35,50 +192,170 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  let isProcessing = false;
+  const $ = id => document.getElementById(id);
+  const finder = $('finder'), sheet = $('sheet'), backdrop = $('backdrop');
+  const btnAccept = $('btnAccept'), btnCancel = $('btnCancel');
 
-  async function onScanSuccess(decodedText) {
-    if (isProcessing) return;
-    isProcessing = true;
+  const ICONS = {
+    ok:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>',
+    warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>',
+    err:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+  };
+
+  let scanner = null;
+  let busy = false;        // beolvasás feldolgozás alatt / lap nyitva
+  let current = null;      // { code, ref }
+
+  function setStatus(live, text){
+    $('dot').classList.toggle('live', live);
+    $('statusText').textContent = text;
+  }
+
+  function lockFinder(kind){
+    finder.classList.add('locked', kind);
+  }
+  function unlockFinder(){
+    finder.classList.remove('locked', 'ok', 'warn', 'err');
+  }
+
+  function openSheet({ kind, badge, name, code, acceptable }){
+    sheet.className = 'sheet ' + kind;
+    $('badge').innerHTML = ICONS[kind] + '<span>' + badge + '</span>';
+    $('pName').textContent = name;
+    $('pCode').textContent = code;
+    btnAccept.classList.toggle('hidden', !acceptable);
+    btnCancel.textContent = acceptable ? 'Mégse' : 'Vissza';
+    btnCancel.style.flex = acceptable ? '1' : '1';
+    btnAccept.disabled = false;
+    btnAccept.textContent = 'Elfogad';
+    // kis késleltetés, hogy az animáció induljon
+    requestAnimationFrame(() => {
+      sheet.classList.add('show');
+      backdrop.classList.add('show');
+    });
+  }
+
+  function closeSheet(){
+    sheet.classList.remove('show');
+    backdrop.classList.remove('show');
+  }
+
+  function resumeScanning(){
+    closeSheet();
+    unlockFinder();
+    current = null;
+    $('hint').textContent = 'Tartsd a QR kódot a keretbe';
+    setStatus(true, 'Beolvasásra kész');
+    try { scanner.resume(); } catch(e) {}
+    // rövid szünet, hogy ugyanazt a kódot ne olvassa be azonnal újra
+    setTimeout(() => { busy = false; }, 600);
+  }
+
+  async function onScanSuccess(decodedText){
+    if (busy) return;
+    busy = true;
+
+    try { scanner.pause(true); } catch(e) {}
+    if (navigator.vibrate) navigator.vibrate(60);
+    const fl = $('flash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
+    setStatus(false, 'Ellenőrzés…');
+    $('hint').textContent = 'Kód ellenőrzése…';
 
     const code = decodedText.trim().toUpperCase();
-    const fb = document.getElementById('feedback');
-    fb.style.display = 'block';
 
     try {
+      if (!code || code.includes('/')) throw { invalid:true };
+
       const ref = doc(db, "participants", code);
       const snap = await getDoc(ref);
 
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.checkedIn) {
-          fb.className = 'msg error';
-          fb.innerHTML = `Már bent van!<br>${data.name}`;
-        } else {
-          await updateDoc(ref, {
-            checkedIn: true,
-            checkedInAt: new Date().toISOString()
-          });
-          fb.className = 'msg success';
-          fb.innerHTML = `SIKERES BELÉPÉS!<br>${data.name}`;
-        }
-      } else {
-        fb.className = 'msg error';
-        fb.innerHTML = `Érvénytelen kód:<br>${code}`;
-      }
-    } catch (e) {
-      fb.className = 'msg error';
-      fb.textContent = "Hiba a csatlakozás során!";
-    }
+      if (!snap.exists()) throw { invalid:true };
 
-    setTimeout(() => {
-      fb.style.display = 'none';
-      isProcessing = false;
-    }, 2500);
+      const data = snap.data();
+      current = { code, ref };
+
+      if (data.checkedIn){
+        lockFinder('warn');
+        openSheet({ kind:'warn', badge:'Már bent van', name:data.name || code, code, acceptable:false });
+      } else {
+        lockFinder('ok');
+        openSheet({ kind:'ok', badge:'Érvényes jegy', name:data.name || code, code, acceptable:true });
+      }
+      $('hint').textContent = '';
+      setStatus(false, 'Megerősítésre vár');
+    } catch (e) {
+      lockFinder('err');
+      if (e && e.invalid){
+        openSheet({ kind:'err', badge:'Érvénytelen kód', name:'Nincs ilyen jegy', code:decodedText.slice(0, 60), acceptable:false });
+      } else {
+        openSheet({ kind:'err', badge:'Hálózati hiba', name:'Nem sikerült csatlakozni', code:'Ellenőrizd az internetkapcsolatot.', acceptable:false });
+      }
+      $('hint').textContent = '';
+      setStatus(false, 'Hiba');
+    }
   }
 
-  const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-  html5QrcodeScanner.render(onScanSuccess);
+  btnAccept.addEventListener('click', async () => {
+    if (!current) return;
+    btnAccept.disabled = true;
+    btnAccept.textContent = 'Mentés…';
+
+    try {
+      // Tranzakció: ha közben másik telefon már beléptette, nem írjuk felül
+      const result = await runTransaction(db, async (tx) => {
+        const s = await tx.get(current.ref);
+        if (!s.exists()) return 'missing';
+        if (s.data().checkedIn) return 'already';
+        tx.update(current.ref, { checkedIn:true, checkedInAt:new Date().toISOString() });
+        return 'done';
+      });
+
+      if (result === 'done'){
+        if (navigator.vibrate) navigator.vibrate([40, 40, 80]);
+        const st = $('stamp'); st.classList.remove('go'); void st.offsetWidth; st.classList.add('go');
+        closeSheet();
+        setStatus(false, 'Belépés rögzítve');
+        $('hint').textContent = 'Sikeres belépés';
+        setTimeout(resumeScanning, 1300);
+      } else if (result === 'already'){
+        lockFinder('warn'); finder.classList.remove('ok');
+        openSheet({ kind:'warn', badge:'Már bent van', name:$('pName').textContent, code:current.code, acceptable:false });
+      } else {
+        lockFinder('err');
+        openSheet({ kind:'err', badge:'Érvénytelen kód', name:'Nincs ilyen jegy', code:current.code, acceptable:false });
+      }
+    } catch (e) {
+      btnAccept.disabled = false;
+      btnAccept.textContent = 'Újra';
+      $('badge').innerHTML = ICONS.err + '<span>Nem sikerült menteni</span>';
+      sheet.className = 'sheet err show';
+    }
+  });
+
+  btnCancel.addEventListener('click', resumeScanning);
+  backdrop.addEventListener('click', () => { if (!btnAccept.disabled) resumeScanning(); });
+
+  async function startCamera(){
+    $('camerr').classList.remove('show');
+    try {
+      scanner = scanner || new Html5Qrcode("reader", { verbose:false });
+      const size = Math.min(finder.clientWidth * 0.72, 320);
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 12, qrbox: { width: size, height: size }, aspectRatio: 1 },
+        onScanSuccess,
+        () => {}
+      );
+      setStatus(true, 'Beolvasásra kész');
+    } catch (err) {
+      setStatus(false, 'Nincs kamera');
+      $('camerrText').textContent = 'A kamera nem indult el. Engedélyezd a kamera használatát a böngészőben, majd próbáld újra.';
+      $('camerr').classList.add('show');
+    }
+  }
+  $('retryCam').addEventListener('click', startCamera);
+
+  startCamera();
 </script>
 </body>
 </html>
