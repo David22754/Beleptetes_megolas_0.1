@@ -2,164 +2,199 @@
 <html lang="hu">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Beléptető Központ (Firebase)</title>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#14171A">
+<title>QR Beolvasó</title>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
-  :root{ --bg:#14171A; --panel:#1D2126; --panel-alt:#23282E; --border:#333A42; --text:#F1EEE7; --text-dim:#9BA3AC; --accent:#E3A857; --accent-ink:#14171A; --good:#6FA287; --good-bg:rgba(111,162,135,.14); --bad:#C1666B; }
-  *{box-sizing:border-box;}
-  body{ margin:0; background:var(--bg); color:var(--text); font-family:'IBM Plex Mono', monospace; }
-  h1,.display-title{ font-family:'Fraunces', serif; }
-  #app{ max-width:900px; margin:0 auto; padding:20px; }
-  header{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:20px; }
-  nav.tabs{ display:flex; gap:2px; background:var(--panel-alt); border:1px solid var(--border); border-radius:10px; padding:3px; margin-bottom:20px; }
-  nav.tabs button{ flex:1; border:none; background:transparent; color:var(--text-dim); padding:10px; border-radius:8px; cursor:pointer; font-family:inherit; }
-  nav.tabs button.active{ background:var(--panel); color:var(--text); }
-  .view{ display:none; } .view.active{ display:block; }
-  .panel{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px; margin-bottom:16px; }
-  label{ display:block; font-size:.72rem; color:var(--text-dim); margin-bottom:6px; }
-  input[type=text], input[type=email]{ width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text); padding:10px; border-radius:8px; font-family:inherit; }
-  .row{ display:flex; gap:10px; margin-top:8px; align-items:center; }
-  .btn{ background:var(--accent); color:var(--accent-ink); border:none; border-radius:8px; padding:10px 16px; font-weight:600; cursor:pointer; }
-  .btn.ghost{ background:transparent; color:var(--text); border:1px solid var(--border); }
-  .btn.small{ padding:4px 8px; font-size:.75rem; }
-  .btn.danger{ border-color:var(--bad); color:var(--bad); background:transparent; }
+  :root{
+    --bg:#14171A;
+    --panel:#1D2227;
+    --line:#2C333A;
+    --text:#F1EEE7;
+    --muted:#8E979F;
+    --ok:#6FA287;
+    --err:#C1666B;
+    --accent:#E3A857;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+    padding:max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+    overflow:hidden;
+  }
+  header{ width:100%; max-width:440px; display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+  h1{ font-size:1.25rem; font-weight:650; margin:0; letter-spacing:.2px; }
+  .status{ display:flex; align-items:center; gap:8px; font-size:.85rem; color:var(--muted); }
+  .dot{ width:9px; height:9px; border-radius:50%; background:var(--muted); transition:background .3s, box-shadow .3s; }
+  .dot.live{ background:var(--ok); box-shadow:0 0 0 0 rgba(111,162,135,.6); animation:pulse 1.8s infinite; }
+  @keyframes pulse{ 70%{ box-shadow:0 0 0 8px rgba(111,162,135,0);} 100%{ box-shadow:0 0 0 0 rgba(111,162,135,0);} }
 
-  .drop-zone {
-    border: 2px dashed var(--border);
-    border-radius: 10px;
+  /* Viewfinder */
+  .finder{
+    position:relative; width:100%; max-width:440px; aspect-ratio:1/1;
+    background:#000; border-radius:22px; overflow:hidden;
+    border:1px solid var(--line);
+  }
+  #reader{ position:absolute; inset:0; }
+  #reader video{ width:100% !important; height:100% !important; object-fit:cover; }
+  #reader img{ display:none; }
+
+  .vignette{
+    position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(circle at center, transparent 45%, rgba(0,0,0,.55) 100%);
+  }
+  .frame{ position:absolute; inset:14%; pointer-events:none; transition:inset .35s ease; }
+  .frame i{
+    position:absolute; width:34px; height:34px; border:4px solid var(--text);
+    transition:border-color .25s;
+  }
+  .frame i:nth-child(1){ top:0; left:0; border-right:0; border-bottom:0; border-top-left-radius:14px; }
+  .frame i:nth-child(2){ top:0; right:0; border-left:0; border-bottom:0; border-top-right-radius:14px; }
+  .frame i:nth-child(3){ bottom:0; left:0; border-right:0; border-top:0; border-bottom-left-radius:14px; }
+  .frame i:nth-child(4){ bottom:0; right:0; border-left:0; border-top:0; border-bottom-right-radius:14px; }
+
+  .scanline{
+    position:absolute; left:0; right:0; height:3px; top:0;
+    background:linear-gradient(90deg, transparent, var(--ok) 20%, var(--ok) 80%, transparent);
+    box-shadow:0 0 18px 4px rgba(111,162,135,.55);
+    border-radius:2px;
+    animation:sweep 2.2s ease-in-out infinite alternate;
+  }
+  .scanline::after{
+    content:""; position:absolute; left:0; right:0; top:-46px; height:46px;
+    background:linear-gradient(to top, rgba(111,162,135,.22), transparent);
+  }
+  @keyframes sweep{ from{ top:2%; } to{ top:calc(98% - 3px); } }
+
+  .finder.locked .scanline{ animation-play-state:paused; opacity:0; transition:opacity .2s; }
+  .finder.locked .frame{ inset:9%; }
+  .finder.locked.ok  .frame i{ border-color:var(--ok); }
+  .finder.locked.err .frame i{ border-color:var(--err); }
+
+  .flash{ position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; }
+  .flash.go{ animation:flash .45s ease-out; }
+  @keyframes flash{ 0%{ opacity:.5; } 100%{ opacity:0; } }
+
+  .hint{ margin:18px 0 0; color:var(--muted); font-size:.95rem; text-align:center; min-height:1.4em; }
+
+  /* Placeholder / error before camera start */
+  .camerr{
+    position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; padding:24px; text-align:center; background:var(--panel); color:var(--muted); z-index:2;
+  }
+  .camerr.show{ display:flex; }
+
+  /* Result sheet & Confirm modal */
+  .backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,.5); opacity:0; pointer-events:none; transition:opacity .25s; z-index:10;
+  }
+  .backdrop.show{ opacity:1; pointer-events:auto; }
+  
+  .sheet{
+    position:fixed; left:0; right:0; bottom:0; margin:0 auto; max-width:480px;
+    background:var(--panel); border:1px solid var(--line); border-bottom:0;
+    border-radius:24px 24px 0 0;
+    padding:22px 22px max(22px, env(safe-area-inset-bottom));
+    transform:translateY(105%); transition:transform .32s cubic-bezier(.2,.9,.25,1);
+    z-index:11;
+  }
+  .sheet.show{ transform:translateY(0); }
+  
+  .badge{
+    display:inline-flex; align-items:center; gap:8px; font-size:.9rem; font-weight:600;
+    padding:6px 12px; border-radius:999px; margin-bottom:14px;
+  }
+  .badge svg{ width:16px; height:16px; }
+  .sheet.ok  .badge{ background:rgba(111,162,135,.16); color:var(--ok); }
+  .sheet.err .badge{ background:rgba(193,102,107,.16); color:var(--err); }
+  .name{ font-size:1.6rem; font-weight:700; line-height:1.15; margin:0 0 6px; word-break:break-word; }
+  .email{ font-size:1rem; color:var(--accent); margin:0 0 8px; word-break:break-all; }
+  .code{ font-size:.85rem; color:var(--muted); margin:0 0 20px; word-break:break-all; }
+  
+  .actions{ display:flex; gap:12px; }
+  button{
+    flex:1; font:inherit; font-weight:650; font-size:1.05rem; border:0; border-radius:14px;
+    padding:16px 14px; cursor:pointer; transition:transform .1s, opacity .2s;
+  }
+  button:active{ transform:scale(.97); }
+  .btn-ok{ background:var(--ok); color:#0E1A14; }
+  .btn-ghost{ background:transparent; color:var(--text); border:1px solid var(--line); }
+
+  /* Felugró ablak a szakmai továbbképzéshez */
+  .confirm-box {
+    display: none;
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%; max-width: 380px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 20px;
     padding: 24px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    z-index: 12;
     text-align: center;
-    background: var(--panel-alt);
-    cursor: pointer;
-    transition: all 0.2s ease;
   }
-  .drop-zone.dragover {
-    border-color: var(--accent);
-    background: rgba(227, 168, 87, 0.08);
+  .confirm-box.show { display: block; }
+  .confirm-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 12px; }
+  .confirm-desc { font-size: 0.95rem; color: var(--muted); margin-bottom: 20px; }
+
+  @media (prefers-reduced-motion: reduce){
+    .scanline{ animation:none; top:50%; }
+    .dot.live{ animation:none; }
+    .sheet,.backdrop,.frame{ transition:none; }
   }
-  .drop-zone-text {
-    color: var(--text-dim);
-    font-size: 0.85rem;
-    pointer-events: none;
-  }
-  .drop-zone-text b {
-    color: var(--accent);
-  }
-
-  .prow{ display:flex; align-items:center; gap:12px; background:var(--panel-alt); border:1px solid var(--border); border-radius:10px; padding:10px; margin-top:10px; }
-  .prow .select-box{ width:18px; height:18px; cursor:pointer; accent-color:var(--accent); }
-  .prow .qr{ width:50px; height:50px; background:#fff; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform 0.15s; padding:2px; }
-  .prow .qr:hover{ transform:scale(1.08); }
-  .prow .info{ flex:1; overflow:hidden; }
-  .prow .info b{ display:block; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
-  .prow .info span{ display:block; color:var(--text-dim); font-size:.8rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
-
-  .bulk-bar{ display:flex; gap:10px; align-items:center; background:var(--panel-alt); border:1px solid var(--border); padding:10px 14px; border-radius:10px; margin-bottom:12px; }
-  .bulk-bar label{ margin:0; cursor:pointer; display:flex; align-items:center; gap:6px; color:var(--text); font-size:.85rem; }
-
-  table{ width:100%; border-collapse:collapse; margin-top:10px; }
-  th,td{ padding:10px; text-align:left; border-bottom:1px solid var(--border); }
-
-  .modal-backdrop{ position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:999; backdrop-filter:blur(4px); }
-  .modal-backdrop.active{ display:flex; }
-  .modal-card{ background:var(--panel); border:1px solid var(--border); padding:24px; border-radius:16px; text-align:center; max-width:320px; width:90%; box-shadow:0 20px 40px rgba(0,0,0,0.5); }
-  .modal-card h3{ margin:0 0 6px 0; font-family:'Fraunces', serif; font-size:1.3rem; word-break:break-word; }
-  .modal-card p{ margin:0 0 16px 0; color:var(--text-dim); font-size:.8rem; }
-  .modal-qr{ background:#fff; padding:16px; border-radius:12px; display:inline-block; margin-bottom:16px; }
-  .empty-hint{ color:var(--text-dim); font-size:.82rem; padding:16px 0; text-align:center; }
 </style>
 </head>
 <body>
 
-<div id="app">
-  <header>
-    <h1>Beléptető Központ</h1>
-    <div style="color:var(--text-dim); font-size:.8rem;" id="status-label">Firebase Csatlakozás...</div>
-  </header>
+<header>
+  <h1>QR Beolvasó</h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText">Indítás…</span></div>
+</header>
 
-  <nav class="tabs">
-    <button data-view="admin" class="active">Résztvevők</button>
-    <button data-view="display">Kivetítő</button>
-    <button data-view="training">Továbbképzés</button>
-  </nav>
-
-  <section class="view active" id="view-admin">
-    <div class="panel">
-      <label>Egyéni résztvevő hozzáadása</label>
-      <div class="row">
-        <input type="text" id="new-name" placeholder="Név">
-        <input type="email" id="new-email" placeholder="E-mail cím">
-        <button class="btn" id="add-btn">Hozzáadás</button>
-      </div>
-    </div>
-
-    <!-- Drag and Drop CSV Feltöltő Zóna -->
-    <div class="panel">
-      <label>CSV Tömeges Feltöltés</label>
-      <div class="drop-zone" id="drop-zone">
-        <div class="drop-zone-text" id="drop-zone-text">
-          Húzd ide a CSV fájlt, vagy <b>Kattints a tallózáshoz</b>
-        </div>
-        <input type="file" id="csv-file" accept=".csv,text/csv" style="display:none;">
-      </div>
-      <div id="import-result" style="margin-top:8px; font-size:.78rem; color:var(--text-dim);"></div>
-    </div>
-
-    <input type="text" id="search" placeholder="Keresés..." style="margin-bottom:10px;">
-
-    <div class="bulk-bar">
-      <label><input type="checkbox" id="select-all" class="select-box"> Mind</label>
-      <div style="flex:1;"></div>
-      <button class="btn small danger" id="bulk-del-btn">Törlés</button>
-    </div>
-
-    <div id="plist"></div>
-  </section>
-
-  <section class="view" id="view-display">
-    <div class="panel">
-      <h2 class="display-title">Beléptetés Állapota</h2>
-      <div style="margin-bottom:15px; font-size:1.1rem;">
-        Összesen: <b id="stat-total">0</b>
-      </div>
-      <table>
-        <thead><tr><th>Kód</th><th>Név</th><th>E-mail</th></tr></thead>
-        <tbody id="display-tbody"></tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="view" id="view-training">
-    <div class="panel">
-      <h2 class="display-title">Szakmai Továbbképzés</h2>
-      <div style="margin-bottom:15px; font-size:1.1rem;">
-        Összesen: <b id="stat-cert" style="color:var(--accent);">0</b>
-      </div>
-      <table>
-        <thead><tr><th>Kód</th><th>Név</th><th>E-mail</th></tr></thead>
-        <tbody id="training-tbody"></tbody>
-      </table>
-      <div class="empty-hint" id="training-empty" style="display:none;">Nincsenek résztvevők a listában.</div>
-    </div>
-  </section>
+<div class="finder" id="finder">
+  <div id="reader"></div>
+  <div class="vignette"></div>
+  <div class="frame"><i></i><i></i><i></i><i></i><div class="scanline"></div></div>
+  <div class="flash" id="flash"></div>
+  <div class="camerr" id="camerr">
+    <div id="camerrText">A kamera nem érhető el.</div>
+    <button class="btn-ok" id="retryCam" style="flex:none">Újrapróbálom</button>
+  </div>
 </div>
+<p class="hint" id="hint">Tartsd a QR kódot a keretbe</p>
 
-<div class="modal-backdrop" id="qr-modal">
-  <div class="modal-card">
-    <h3 id="modal-name">Résztvevő Neve</h3>
-    <p id="modal-code">KÓD123</p>
-    <div class="modal-qr" id="modal-qr-box"></div>
-    <div>
-      <button class="btn ghost" id="modal-close-btn">Bezárás</button>
-    </div>
+<div class="backdrop" id="backdrop"></div>
+
+<!-- Beolvasási eredmény ablak -->
+<div class="sheet" id="sheet" role="dialog" aria-live="polite">
+  <div class="badge" id="badge"></div>
+  <p class="name" id="pName"></p>
+  <p class="email" id="pEmail"></p>
+  <p class="code" id="pCode"></p>
+  <div class="actions">
+    <button class="btn-ok" id="btnClose">Rendben</button>
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- Szakmai továbbképzés igazolása ablak -->
+<div class="confirm-box" id="confirmBox">
+  <div class="confirm-title">Szakmai továbbképzés</div>
+  <div class="confirm-desc">Szakmai továbbképzés igazolása?</div>
+  <div class="actions">
+    <button class="btn-ghost" id="btnEduNo">Nem</button>
+    <button class="btn-ok" id="btnEduYes">Igen</button>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, runTransaction, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAzXfTNTXJyf0DkdWejm6UQOv90dn67NnA",
@@ -172,222 +207,181 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
-  document.getElementById('status-label').textContent = "● Firebase Online";
 
-  var participants = [];
-  var selectedIds = new Set();
+  const $ = id => document.getElementById(id);
+  const finder = $('finder'), sheet = $('sheet'), backdrop = $('backdrop'), confirmBox = $('confirmBox');
+  const btnClose = $('btnClose'), btnEduYes = $('btnEduYes'), btnEduNo = $('btnEduNo');
 
-  var tabs = document.querySelectorAll('nav.tabs button');
-  tabs.forEach(btn => {
-    btn.addEventListener('click', () => {
-      tabs.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-      document.getElementById('view-' + btn.dataset.view).classList.add('active');
-    });
-  });
-
-  onSnapshot(collection(db, "participants"), (snapshot) => {
-    participants = [];
-    snapshot.forEach((doc) => participants.push({ id: doc.id, ...doc.data() }));
-    render();
-  });
-
-  document.getElementById('add-btn').addEventListener('click', async () => {
-    const inputName = document.getElementById('new-name');
-    const inputEmail = document.getElementById('new-email');
-    const name = inputName.value.trim();
-    const email = inputEmail.value.trim();
-    if (!name) return;
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    await setDoc(doc(db, "participants", code), {
-      name: name,
-      email: email
-    });
-    inputName.value = '';
-    inputEmail.value = '';
-  });
-
-  // Drag and Drop CSV Feldolgozás
-  const dropZone = document.getElementById('drop-zone');
-  const csvFile = document.getElementById('csv-file');
-  const importResult = document.getElementById('import-result');
-
-  dropZone.addEventListener('click', () => csvFile.click());
-
-  dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropZone.classList.add('dragover');
-  });
-
-  ['dragleave', 'dragend'].forEach(type => {
-    dropZone.addEventListener(type, () => dropZone.classList.remove('dragover'));
-  });
-
-  dropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-    if (e.dataTransfer.files.length) {
-      processCsvFile(e.dataTransfer.files[0]);
-    }
-  });
-
-  csvFile.addEventListener('change', () => {
-    if (csvFile.files.length) {
-      processCsvFile(csvFile.files[0]);
-    }
-  });
-
-  function processCsvFile(file) {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const text = e.target.result;
-      const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
-      if (lines.length === 0) return;
-
-      let added = 0;
-      importResult.textContent = "Feltöltés folyamatban...";
-
-      const delimiter = lines[0].includes(';') ? ';' : ',';
-      const headerCols = lines[0].split(delimiter).map(c => c.trim().replace(/^["']|["']$/g, '').toUpperCase());
-      let nameIndex = headerCols.findIndex(col => col === 'NAME' || col === 'NÉV' || col === 'NEV');
-      let emailIndex = headerCols.findIndex(col => col === 'EMAIL' || col === 'E-MAIL');
-
-      let startRow = 0;
-      if (nameIndex !== -1) {
-        startRow = 1;
-      } else {
-        nameIndex = 0;
-        emailIndex = 1;
-      }
-
-      for (let i = startRow; i < lines.length; i++) {
-        const cols = lines[i].split(delimiter);
-        if (cols[nameIndex]) {
-          let extractedName = cols[nameIndex].trim().replace(/^["']|["']$/g, '');
-          let extractedEmail = cols[emailIndex] ? cols[emailIndex].trim().replace(/^["']|["']$/g, '') : '';
-          
-          if (extractedName.toUpperCase() === 'NAME' || extractedName.toUpperCase() === 'NÉV') continue;
-
-          if (extractedName) {
-            const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-            await setDoc(doc(db, "participants", code), {
-              name: extractedName,
-              email: extractedEmail
-            });
-            added++;
-          }
-        }
-      }
-
-      importResult.textContent = `Siker! ${added} résztvevő beimportálva.`;
-      csvFile.value = '';
-    };
-    reader.readAsText(file);
-  }
-
-  // Tömeges kijelölés
-  const selectAllCb = document.getElementById('select-all');
-  selectAllCb.addEventListener('change', (e) => {
-    const q = document.getElementById('search').value.toLowerCase();
-    const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || (p.email && p.email.toLowerCase().includes(q)) || p.id.toLowerCase().includes(q));
-    
-    if (e.target.checked) {
-      filtered.forEach(p => selectedIds.add(p.id));
-    } else {
-      filtered.forEach(p => selectedIds.delete(p.id));
-    }
-    render();
-  });
-
-  document.getElementById('bulk-del-btn').onclick = async () => {
-    if (!confirm(`Biztosan törölni szeretnéd a kijelölt ${selectedIds.size} résztvevőt?`)) return;
-    for (let id of selectedIds) {
-      await deleteDoc(doc(db, "participants", id));
-    }
-    selectedIds.clear();
+  const ICONS = {
+    ok:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>',
+    err: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
   };
 
-  const modal = document.getElementById('qr-modal');
-  const modalQrBox = document.getElementById('modal-qr-box');
-  
-  function openQrModal(name, code) {
-    document.getElementById('modal-name').textContent = name;
-    document.getElementById('modal-code').textContent = "Azonosító: " + code;
-    modalQrBox.innerHTML = '';
-    new QRCode(modalQrBox, { text: code, width: 200, height: 200 });
-    modal.classList.add('active');
+  let scanner = null;
+  let busy = false;
+  let lastScannedUser = null;
+
+  function setStatus(live, text){
+    $('dot').classList.toggle('live', live);
+    $('statusText').textContent = text;
   }
 
-  document.getElementById('modal-close-btn').onclick = () => modal.classList.remove('active');
-  modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
+  function lockFinder(kind){
+    finder.classList.add('locked', kind);
+  }
+  function unlockFinder(){
+    finder.classList.remove('locked', 'ok', 'err');
+  }
 
-  function render() {
-    const q = document.getElementById('search').value.toLowerCase();
-    const listEl = document.getElementById('plist');
-    listEl.innerHTML = '';
-
-    const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || (p.email && p.email.toLowerCase().includes(q)) || p.id.toLowerCase().includes(q));
-    selectAllCb.checked = filtered.length > 0 && filtered.every(p => selectedIds.has(p.id));
-
-    filtered.forEach(p => {
-      const row = document.createElement('div');
-      row.className = 'prow';
-      const isChecked = selectedIds.has(p.id) ? 'checked' : '';
-
-      row.innerHTML = `
-        <input type="checkbox" class="select-box row-cb" ${isChecked}>
-        <div class="qr" id="qr-${p.id}" title="Nagyítás"></div>
-        <div class="info">
-          <b title="${p.name}">${p.name}</b>
-          <span>${p.email || '—'}</span>
-          <small>${p.id}</small>
-        </div>
-        <button class="btn small danger del-btn">X</button>`;
-      
-      listEl.appendChild(row);
-      
-      const qrElement = document.getElementById(`qr-${p.id}`);
-      try { new QRCode(qrElement, { text: p.id, width: 50, height: 50 }); } catch(e){}
-
-      qrElement.onclick = () => openQrModal(p.name, p.id);
-
-      row.querySelector('.row-cb').onchange = (e) => {
-        if (e.target.checked) selectedIds.add(p.id);
-        else selectedIds.delete(p.id);
-        selectAllCb.checked = filtered.every(item => selectedIds.has(item.id));
-      };
-
-      row.querySelector('.del-btn').onclick = () => {
-        deleteDoc(doc(db, "participants", p.id));
-        selectedIds.delete(p.id);
-      };
+  function openSheet({ kind, badge, name, email, code }){
+    sheet.className = 'sheet ' + kind;
+    $('badge').innerHTML = ICONS[kind] + '<span>' + badge + '</span>';
+    $('pName').textContent = name;
+    $('pEmail').textContent = email || '';
+    $('pCode').textContent = "Kód: " + code;
+    
+    requestAnimationFrame(() => {
+      sheet.classList.add('show');
+      backdrop.classList.add('show');
     });
-
-    document.getElementById('stat-total').textContent = participants.length;
-    const tbody = document.getElementById('display-tbody');
-    tbody.innerHTML = participants.map(p => `
-      <tr>
-        <td><code>${p.id}</code></td>
-        <td><b>${p.name}</b></td>
-        <td>${p.email || '—'}</td>
-      </tr>
-    `).join('');
-
-    // Továbbképzés füle
-    document.getElementById('stat-cert').textContent = participants.length;
-    const trainingTbody = document.getElementById('training-tbody');
-    trainingTbody.innerHTML = participants.map(p => `
-      <tr>
-        <td><code>${p.id}</code></td>
-        <td><b>${p.name}</b></td>
-        <td>${p.email || '—'}</td>
-      </tr>
-    `).join('');
-    document.getElementById('training-empty').style.display = participants.length ? 'none' : 'block';
   }
 
-  document.getElementById('search').addEventListener('input', render);
+  function closeSheet(){
+    sheet.classList.remove('show');
+  }
+
+  function resumeScanning(){
+    closeSheet();
+    confirmBox.classList.remove('show');
+    backdrop.classList.remove('show');
+    unlockFinder();
+    lastScannedUser = null;
+    $('hint').textContent = 'Tartsd a QR kódot a keretbe';
+    setStatus(true, 'Beolvasásra kész');
+    try { scanner.resume(); } catch(e) {}
+    setTimeout(() => { busy = false; }, 600);
+  }
+
+  // Rendben gomb: Eredményablak bezárása -> ha érvényes volt, felugrik a továbbképzés ablak
+  btnClose.addEventListener('click', () => {
+    closeSheet();
+    if (lastScannedUser && lastScannedUser.success) {
+      confirmBox.classList.add('show');
+    } else {
+      resumeScanning();
+    }
+  });
+
+  // IGEN: Belerakja az új fülembe (continuing_education) a nevet és e-mailt
+  btnEduYes.addEventListener('click', async () => {
+    if (lastScannedUser && lastScannedUser.code) {
+      try {
+        setStatus(false, 'Mentés…');
+        await setDoc(doc(db, "continuing_education", lastScannedUser.code), {
+          name: lastScannedUser.name,
+          email: lastScannedUser.email,
+          code: lastScannedUser.code,
+          timestamp: serverTimestamp()
+        });
+      } catch (e) {
+        console.error("Mentési hiba: ", e);
+      }
+    }
+    resumeScanning();
+  });
+
+  // NEM: Nem csinál semmit, visszatér a beolvasáshoz
+  btnEduNo.addEventListener('click', resumeScanning);
+
+  async function onScanSuccess(decodedText){
+    if (busy) return;
+    busy = true;
+
+    try { scanner.pause(true); } catch(e) {}
+    if (navigator.vibrate) navigator.vibrate(60);
+    const fl = $('flash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
+    setStatus(false, 'Keresés…');
+    $('hint').textContent = 'Kód ellenőrzése…';
+
+    const code = decodedText.trim().toUpperCase();
+
+    try {
+      if (!code || code.includes('/')) throw { invalid:true };
+
+      const ref = doc(db, "participants", code);
+      let res = {};
+
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) throw { invalid:true };
+
+        const data = snap.data();
+        res = {
+          already: !!data.checkedIn,
+          name: data.name || code,
+          email: data.email || 'Nincs megadva e-mail'
+        };
+
+        if (!data.checkedIn) {
+          tx.update(ref, {
+            checkedIn: true,
+            checkedInAt: serverTimestamp()
+          });
+        }
+      });
+
+      lastScannedUser = {
+        success: true,
+        code: code,
+        name: res.name,
+        email: res.email
+      };
+
+      lockFinder('ok');
+      openSheet({
+        kind: 'ok',
+        badge: res.already ? 'Már belépett korábban' : 'Sikeres beléptetés',
+        name: res.name,
+        email: res.email,
+        code: code
+      });
+      $('hint').textContent = '';
+      setStatus(false, 'Kész');
+
+    } catch (e) {
+      lastScannedUser = null;
+      lockFinder('err');
+      if (e && e.invalid){
+        openSheet({ kind:'err', badge:'Ismeretlen kód', name:'Nincs ilyen résztvevő', email:'', code:decodedText.slice(0, 60) });
+      } else {
+        openSheet({ kind:'err', badge:'Hálózati hiba', name:'Nem sikerült csatlakozni', email:'', code:'Ellenőrizd az internetkapcsolatot.' });
+      }
+      $('hint').textContent = '';
+      setStatus(false, 'Hiba');
+    }
+  }
+
+  async function startCamera(){
+    $('camerr').classList.remove('show');
+    try {
+      scanner = scanner || new Html5Qrcode("reader", { verbose:false });
+      const size = Math.min(finder.clientWidth * 0.72, 320);
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 12, qrbox: { width: size, height: size }, aspectRatio: 1 },
+        onScanSuccess,
+        () => {}
+      );
+      setStatus(true, 'Beolvasásra kész');
+    } catch (err) {
+      setStatus(false, 'Nincs kamera');
+      $('camerrText').textContent = 'A kamera nem indult el. Engedélyezd a kamera használatát a böngészőben, majd próbáld újra.';
+      $('camerr').classList.add('show');
+    }
+  }
+  $('retryCam').addEventListener('click', startCamera);
+
+  startCamera();
 </script>
 </body>
 </html>
