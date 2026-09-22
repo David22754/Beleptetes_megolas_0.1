@@ -18,13 +18,12 @@
   .view{ display:none; } .view.active{ display:block; }
   .panel{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px; margin-bottom:16px; }
   label{ display:block; font-size:.72rem; color:var(--text-dim); margin-bottom:6px; }
-  input[type=text]{ width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text); padding:10px; border-radius:8px; font-family:inherit; }
+  input[type=text], input[type=email]{ width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text); padding:10px; border-radius:8px; font-family:inherit; }
   .row{ display:flex; gap:10px; margin-top:8px; align-items:center; }
   .btn{ background:var(--accent); color:var(--accent-ink); border:none; border-radius:8px; padding:10px 16px; font-weight:600; cursor:pointer; }
   .btn.ghost{ background:transparent; color:var(--text); border:1px solid var(--border); }
   .btn.small{ padding:4px 8px; font-size:.75rem; }
   .btn.danger{ border-color:var(--bad); color:var(--bad); background:transparent; }
-  
 
   .drop-zone {
     border: 2px dashed var(--border);
@@ -54,10 +53,7 @@
   .prow .qr:hover{ transform:scale(1.08); }
   .prow .info{ flex:1; overflow:hidden; }
   .prow .info b{ display:block; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
-  .badge{ font-size:.7rem; padding:2px 6px; border-radius:10px; font-weight:600; }
-  .badge.in{ background:var(--good-bg); color:var(--good); }
-  .badge.out{ background:var(--border); color:var(--text-dim); }
-  .badge.cert{ background:rgba(227,168,87,.16); color:var(--accent); }
+  .prow .info span{ display:block; color:var(--text-dim); font-size:.8rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
 
   .bulk-bar{ display:flex; gap:10px; align-items:center; background:var(--panel-alt); border:1px solid var(--border); padding:10px 14px; border-radius:10px; margin-bottom:12px; }
   .bulk-bar label{ margin:0; cursor:pointer; display:flex; align-items:center; gap:6px; color:var(--text); font-size:.85rem; }
@@ -71,7 +67,6 @@
   .modal-card h3{ margin:0 0 6px 0; font-family:'Fraunces', serif; font-size:1.3rem; word-break:break-word; }
   .modal-card p{ margin:0 0 16px 0; color:var(--text-dim); font-size:.8rem; }
   .modal-qr{ background:#fff; padding:16px; border-radius:12px; display:inline-block; margin-bottom:16px; }
-  .modal-actions{ display:flex; gap:10px; justify-content:center; }
   .empty-hint{ color:var(--text-dim); font-size:.82rem; padding:16px 0; text-align:center; }
 </style>
 </head>
@@ -94,6 +89,7 @@
       <label>Egyéni résztvevő hozzáadása</label>
       <div class="row">
         <input type="text" id="new-name" placeholder="Név">
+        <input type="email" id="new-email" placeholder="E-mail cím">
         <button class="btn" id="add-btn">Hozzáadás</button>
       </div>
     </div>
@@ -115,8 +111,6 @@
     <div class="bulk-bar">
       <label><input type="checkbox" id="select-all" class="select-box"> Mind</label>
       <div style="flex:1;"></div>
-      <button class="btn small ghost" id="bulk-in-btn">Beléptetés</button>
-      <button class="btn small ghost" id="bulk-out-btn">Kiléptetés</button>
       <button class="btn small danger" id="bulk-del-btn">Törlés</button>
     </div>
 
@@ -127,10 +121,10 @@
     <div class="panel">
       <h2 class="display-title">Beléptetés Állapota</h2>
       <div style="margin-bottom:15px; font-size:1.1rem;">
-        Összesen: <b id="stat-total">0</b> | Belépve: <b id="stat-in" style="color:var(--good);">0</b>
+        Összesen: <b id="stat-total">0</b>
       </div>
       <table>
-        <thead><tr><th>Kód</th><th>Név</th><th>Státusz</th><th>Idő</th></tr></thead>
+        <thead><tr><th>Kód</th><th>Név</th><th>E-mail</th></tr></thead>
         <tbody id="display-tbody"></tbody>
       </table>
     </div>
@@ -138,15 +132,15 @@
 
   <section class="view" id="view-training">
     <div class="panel">
-      <h2 class="display-title">Igazolt Szakmai Továbbképzés</h2>
+      <h2 class="display-title">Szakmai Továbbképzés</h2>
       <div style="margin-bottom:15px; font-size:1.1rem;">
-        Igazolták: <b id="stat-cert" style="color:var(--accent);">0</b>
+        Összesen: <b id="stat-cert" style="color:var(--accent);">0</b>
       </div>
       <table>
-        <thead><tr><th>Kód</th><th>Név</th><th>Jelenlegi státusz</th><th>Igazolás ideje</th></tr></thead>
+        <thead><tr><th>Kód</th><th>Név</th><th>E-mail</th></tr></thead>
         <tbody id="training-tbody"></tbody>
       </table>
-      <div class="empty-hint" id="training-empty" style="display:none;">Még senki nem igazolta a szakmai továbbképzést.</div>
+      <div class="empty-hint" id="training-empty" style="display:none;">Nincsenek résztvevők a listában.</div>
     </div>
   </section>
 </div>
@@ -162,21 +156,10 @@
   </div>
 </div>
 
-<div class="modal-backdrop" id="training-modal">
-  <div class="modal-card">
-    <h3>Szakmai továbbképzés</h3>
-    <p id="training-modal-text">Igazolja <b id="training-modal-name"></b> a szakmai továbbképzést?</p>
-    <div class="modal-actions">
-      <button class="btn ghost" id="training-no-btn">Nem</button>
-      <button class="btn" id="training-yes-btn">Igen</button>
-    </div>
-  </div>
-</div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAzXfTNTXJyf0DkdWejm6UQOv90dn67NnA",
@@ -193,7 +176,6 @@
 
   var participants = [];
   var selectedIds = new Set();
-  var pendingTrainingId = null;
 
   var tabs = document.querySelectorAll('nav.tabs button');
   tabs.forEach(btn => {
@@ -212,18 +194,18 @@
   });
 
   document.getElementById('add-btn').addEventListener('click', async () => {
-    const input = document.getElementById('new-name');
-    const name = input.value.trim();
+    const inputName = document.getElementById('new-name');
+    const inputEmail = document.getElementById('new-email');
+    const name = inputName.value.trim();
+    const email = inputEmail.value.trim();
     if (!name) return;
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     await setDoc(doc(db, "participants", code), {
       name: name,
-      checkedIn: false,
-      checkedInAt: null,
-      trainingCertified: false,
-      trainingCertifiedAt: null
+      email: email
     });
-    input.value = '';
+    inputName.value = '';
+    inputEmail.value = '';
   });
 
   // Drag and Drop CSV Feldolgozás
@@ -269,29 +251,29 @@
       const delimiter = lines[0].includes(';') ? ';' : ',';
       const headerCols = lines[0].split(delimiter).map(c => c.trim().replace(/^["']|["']$/g, '').toUpperCase());
       let nameIndex = headerCols.findIndex(col => col === 'NAME' || col === 'NÉV' || col === 'NEV');
-      
+      let emailIndex = headerCols.findIndex(col => col === 'EMAIL' || col === 'E-MAIL');
+
       let startRow = 0;
       if (nameIndex !== -1) {
         startRow = 1;
       } else {
-        const firstRowCols = lines[0].split(delimiter);
-        nameIndex = firstRowCols.length >= 3 ? 2 : 0; 
+        nameIndex = 0;
+        emailIndex = 1;
       }
 
       for (let i = startRow; i < lines.length; i++) {
         const cols = lines[i].split(delimiter);
         if (cols[nameIndex]) {
           let extractedName = cols[nameIndex].trim().replace(/^["']|["']$/g, '');
+          let extractedEmail = cols[emailIndex] ? cols[emailIndex].trim().replace(/^["']|["']$/g, '') : '';
+          
           if (extractedName.toUpperCase() === 'NAME' || extractedName.toUpperCase() === 'NÉV') continue;
 
           if (extractedName) {
             const code = Math.random().toString(36).substring(2, 8).toUpperCase();
             await setDoc(doc(db, "participants", code), {
               name: extractedName,
-              checkedIn: false,
-              checkedInAt: null,
-              trainingCertified: false,
-              trainingCertifiedAt: null
+              email: extractedEmail
             });
             added++;
           }
@@ -308,7 +290,7 @@
   const selectAllCb = document.getElementById('select-all');
   selectAllCb.addEventListener('change', (e) => {
     const q = document.getElementById('search').value.toLowerCase();
-    const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
+    const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || (p.email && p.email.toLowerCase().includes(q)) || p.id.toLowerCase().includes(q));
     
     if (e.target.checked) {
       filtered.forEach(p => selectedIds.add(p.id));
@@ -317,18 +299,6 @@
     }
     render();
   });
-
-  document.getElementById('bulk-in-btn').onclick = async () => {
-    for (let id of selectedIds) {
-      await updateDoc(doc(db, "participants", id), { checkedIn: true, checkedInAt: new Date().toISOString() });
-    }
-  };
-
-  document.getElementById('bulk-out-btn').onclick = async () => {
-    for (let id of selectedIds) {
-      await updateDoc(doc(db, "participants", id), { checkedIn: false, checkedInAt: null });
-    }
-  };
 
   document.getElementById('bulk-del-btn').onclick = async () => {
     if (!confirm(`Biztosan törölni szeretnéd a kijelölt ${selectedIds.size} résztvevőt?`)) return;
@@ -352,42 +322,12 @@
   document.getElementById('modal-close-btn').onclick = () => modal.classList.remove('active');
   modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
 
-  // Szakmai továbbképzés megerősítő modal
-  const trainingModal = document.getElementById('training-modal');
-  const trainingModalName = document.getElementById('training-modal-name');
-
-  function openTrainingModal(id, name) {
-    pendingTrainingId = id;
-    trainingModalName.textContent = name;
-    trainingModal.classList.add('active');
-  }
-
-  function closeTrainingModal() {
-    pendingTrainingId = null;
-    trainingModal.classList.remove('active');
-  }
-
-  document.getElementById('training-yes-btn').onclick = async () => {
-    if (!pendingTrainingId) return;
-    await updateDoc(doc(db, "participants", pendingTrainingId), {
-      trainingCertified: true,
-      trainingCertifiedAt: new Date().toISOString()
-    });
-    closeTrainingModal();
-  };
-
-  document.getElementById('training-no-btn').onclick = () => {
-    closeTrainingModal();
-  };
-
-  trainingModal.onclick = (e) => { if (e.target === trainingModal) closeTrainingModal(); };
-
   function render() {
     const q = document.getElementById('search').value.toLowerCase();
     const listEl = document.getElementById('plist');
     listEl.innerHTML = '';
 
-    const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
+    const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || (p.email && p.email.toLowerCase().includes(q)) || p.id.toLowerCase().includes(q));
     selectAllCb.checked = filtered.length > 0 && filtered.every(p => selectedIds.has(p.id));
 
     filtered.forEach(p => {
@@ -398,10 +338,11 @@
       row.innerHTML = `
         <input type="checkbox" class="select-box row-cb" ${isChecked}>
         <div class="qr" id="qr-${p.id}" title="Nagyítás"></div>
-        <div class="info"><b title="${p.name}">${p.name}</b><small>${p.id}</small></div>
-        <span class="badge ${p.checkedIn ? 'in' : 'out'}">${p.checkedIn ? 'BENN' : 'VÁR'}</span>
-        ${p.trainingCertified ? '<span class="badge cert" title="Igazolt szakmai továbbképzés">TK ✓</span>' : ''}
-        <button class="btn small ghost toggle-btn">${p.checkedIn ? 'Kiléptetés' : 'Beléptetés'}</button>
+        <div class="info">
+          <b title="${p.name}">${p.name}</b>
+          <span>${p.email || '—'}</span>
+          <small>${p.id}</small>
+        </div>
         <button class="btn small danger del-btn">X</button>`;
       
       listEl.appendChild(row);
@@ -417,17 +358,6 @@
         selectAllCb.checked = filtered.every(item => selectedIds.has(item.id));
       };
 
-      row.querySelector('.toggle-btn').onclick = async () => {
-        const goingIn = !p.checkedIn;
-        await updateDoc(doc(db, "participants", p.id), {
-          checkedIn: goingIn,
-          checkedInAt: goingIn ? new Date().toISOString() : null
-        });
-        // Csak beléptetéskor kérdezünk rá a szakmai továbbképzésre
-        if (goingIn) {
-          openTrainingModal(p.id, p.name);
-        }
-      };
       row.querySelector('.del-btn').onclick = () => {
         deleteDoc(doc(db, "participants", p.id));
         selectedIds.delete(p.id);
@@ -435,30 +365,26 @@
     });
 
     document.getElementById('stat-total').textContent = participants.length;
-    document.getElementById('stat-in').textContent = participants.filter(p => p.checkedIn).length;
     const tbody = document.getElementById('display-tbody');
     tbody.innerHTML = participants.map(p => `
       <tr>
         <td><code>${p.id}</code></td>
         <td><b>${p.name}</b></td>
-        <td><span class="badge ${p.checkedIn ? 'in' : 'out'}">${p.checkedIn ? 'BENN' : 'VÁR'}</span></td>
-        <td>${p.checkedInAt ? new Date(p.checkedInAt).toLocaleTimeString() : '—'}</td>
+        <td>${p.email || '—'}</td>
       </tr>
     `).join('');
 
-    // Továbbképzést igazolók listája (a résztvevő emellett a Résztvevők fülön is megmarad)
-    const certified = participants.filter(p => p.trainingCertified);
-    document.getElementById('stat-cert').textContent = certified.length;
+    // Továbbképzés füle
+    document.getElementById('stat-cert').textContent = participants.length;
     const trainingTbody = document.getElementById('training-tbody');
-    trainingTbody.innerHTML = certified.map(p => `
+    trainingTbody.innerHTML = participants.map(p => `
       <tr>
         <td><code>${p.id}</code></td>
         <td><b>${p.name}</b></td>
-        <td><span class="badge ${p.checkedIn ? 'in' : 'out'}">${p.checkedIn ? 'BENN' : 'VÁR'}</span></td>
-        <td>${p.trainingCertifiedAt ? new Date(p.trainingCertifiedAt).toLocaleString() : '—'}</td>
+        <td>${p.email || '—'}</td>
       </tr>
     `).join('');
-    document.getElementById('training-empty').style.display = certified.length ? 'none' : 'block';
+    document.getElementById('training-empty').style.display = participants.length ? 'none' : 'block';
   }
 
   document.getElementById('search').addEventListener('input', render);
