@@ -68,6 +68,14 @@
   th,td{ padding:10px; text-align:left; border-bottom:1px solid var(--border); }
   tr.trained td{ background:rgba(111,162,135,.08); }
 
+  .export-bar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
+  .export-bar .count{ color:var(--text-dim); font-size:.8rem; }
+  .copy-msg{ font-size:.78rem; color:var(--good); margin-left:10px; opacity:0; transition:opacity .2s; }
+  .copy-msg.show{ opacity:1; }
+  #export-table th{ color:var(--text-dim); font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; }
+  #export-table td.mono{ font-family:'IBM Plex Mono', monospace; }
+  .empty-note{ color:var(--text-dim); font-size:.82rem; padding:14px 4px; }
+
   .modal-backdrop{ position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:999; backdrop-filter:blur(4px); }
   .modal-backdrop.active{ display:flex; }
   .modal-card{ background:var(--panel); border:1px solid var(--border); padding:24px; border-radius:16px; text-align:center; max-width:320px; width:90%; box-shadow:0 20px 40px rgba(0,0,0,0.5); }
@@ -87,6 +95,7 @@
   <nav class="tabs">
     <button data-view="admin" class="active">Résztvevők</button>
     <button data-view="display">Kivetítő</button>
+    <button data-view="export">Táblázat</button>
   </nav>
 
   <section class="view active" id="view-admin">
@@ -133,6 +142,28 @@
         <thead><tr><th>Kód</th><th>Név</th><th>Státusz</th><th>Továbbképzés</th><th>Idő</th></tr></thead>
         <tbody id="display-tbody"></tbody>
       </table>
+    </div>
+  </section>
+
+  <section class="view" id="view-export">
+    <div class="panel">
+      <h2 class="display-title">Elfogadott továbbképzések</h2>
+      <p style="color:var(--text-dim); font-size:.82rem; margin-top:-6px;">
+        Csak azok a résztvevők szerepelnek, akiknél a Kivetítő fülön a Továbbképzés ELFOGADVA státuszú.
+        A táblázat gombbal Excelbe / Google Táblázatba beilleszthető formában másolható.
+      </p>
+      <div class="export-bar">
+        <div class="count"><b id="export-count">0</b> résztvevő</div>
+        <div>
+          <button class="btn small" id="copy-btn">Táblázat másolása</button>
+          <span class="copy-msg" id="copy-msg">Másolva!</span>
+        </div>
+      </div>
+      <table id="export-table">
+        <thead><tr><th>Kód</th><th>Név</th><th>Továbbképzés</th></tr></thead>
+        <tbody id="export-tbody"></tbody>
+      </table>
+      <div class="empty-note" id="export-empty" style="display:none;">Egyelőre senki nem fogadta el a továbbképzést.</div>
     </div>
   </section>
 </div>
@@ -326,6 +357,48 @@
   document.getElementById('modal-close-btn').onclick = () => modal.classList.remove('active');
   modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
 
+  // Táblázat fül: csak az elfogadott továbbképzésűek, másolható formátumban
+  const copyBtn = document.getElementById('copy-btn');
+  const copyMsg = document.getElementById('copy-msg');
+
+  function renderExport(){
+    const trained = participants.filter(p => p.trainingAccepted);
+    const tbody = document.getElementById('export-tbody');
+    document.getElementById('export-count').textContent = trained.length;
+    document.getElementById('export-empty').style.display = trained.length ? 'none' : 'block';
+    document.getElementById('export-table').style.display = trained.length ? '' : 'none';
+
+    tbody.innerHTML = trained.map(p => `
+      <tr>
+        <td class="mono">${p.id}</td>
+        <td>${p.name}</td>
+        <td>Elfogadva</td>
+      </tr>
+    `).join('');
+  }
+
+  copyBtn.addEventListener('click', async () => {
+    const trained = participants.filter(p => p.trainingAccepted);
+    const header = ['Kód', 'Név', 'Továbbképzés'];
+    const rows = trained.map(p => [p.id, p.name, 'Elfogadva']);
+    const tsv = [header, ...rows].map(r => r.join('\t')).join('\n');
+
+    try {
+      await navigator.clipboard.writeText(tsv);
+    } catch (e) {
+      // Vágólap API nem elérhető (pl. nem HTTPS) - kijelöljük a táblázatot helyette
+      const range = document.createRange();
+      range.selectNode(document.getElementById('export-table'));
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+      document.execCommand('copy');
+      window.getSelection().removeAllRanges();
+    }
+
+    copyMsg.classList.add('show');
+    setTimeout(() => copyMsg.classList.remove('show'), 1600);
+  });
+
   function render() {
     const q = document.getElementById('search').value.toLowerCase();
     const listEl = document.getElementById('plist');
@@ -388,6 +461,8 @@
         <td>${p.checkedInAt ? new Date(p.checkedInAt).toLocaleTimeString() : '—'}</td>
       </tr>
     `).join('');
+
+    renderExport();
   }
 
   document.getElementById('search').addEventListener('input', render);
