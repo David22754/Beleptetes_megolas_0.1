@@ -16,6 +16,7 @@
     --ok:#6FA287;
     --err:#C1666B;
     --warn:#D2A85A;
+    --info:#7CA0C1;
   }
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body{ height:100%; margin:0; }
@@ -72,9 +73,10 @@
 
   .finder.locked .scanline{ animation-play-state:paused; opacity:0; transition:opacity .2s; }
   .finder.locked .frame{ inset:9%; }
-  .finder.locked.ok  .frame i{ border-color:var(--ok); }
-  .finder.locked.err .frame i{ border-color:var(--err); }
+  .finder.locked.ok   .frame i{ border-color:var(--ok); }
+  .finder.locked.err  .frame i{ border-color:var(--err); }
   .finder.locked.warn .frame i{ border-color:var(--warn); }
+  .finder.locked.ask  .frame i{ border-color:var(--info); }
 
   .flash{ position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; }
   .flash.go{ animation:flash .45s ease-out; }
@@ -110,8 +112,18 @@
   .sheet.ok   .badge{ background:rgba(111,162,135,.16); color:var(--ok); }
   .sheet.warn .badge{ background:rgba(210,168,90,.16);  color:var(--warn); }
   .sheet.err  .badge{ background:rgba(193,102,107,.16); color:var(--err); }
+  .sheet.ask  .badge{ background:rgba(124,160,193,.16); color:var(--info); }
+
+  .info-row{
+    padding:10px 12px; margin:0 -12px 20px; border-radius:14px;
+    transition:background .35s ease, box-shadow .35s ease;
+  }
+  .info-row.accepted{
+    background:rgba(111,162,135,.14);
+    box-shadow:0 0 0 2px var(--ok) inset;
+  }
   .name{ font-size:1.7rem; font-weight:700; line-height:1.15; margin:0 0 6px; word-break:break-word; }
-  .code{ font-size:.95rem; color:var(--muted); margin:0 0 20px; word-break:break-all; }
+  .code{ font-size:.95rem; color:var(--muted); margin:0; word-break:break-all; }
   .actions{ display:flex; gap:12px; }
   button{
     flex:1; font:inherit; font-weight:650; font-size:1.05rem; border:0; border-radius:14px;
@@ -139,7 +151,7 @@
   @media (prefers-reduced-motion: reduce){
     .scanline{ animation:none; top:50%; }
     .dot.live{ animation:none; }
-    .sheet,.backdrop,.frame{ transition:none; }
+    .sheet,.backdrop,.frame,.info-row{ transition:none; }
   }
 </style>
 </head>
@@ -168,8 +180,10 @@
 <div class="backdrop" id="backdrop"></div>
 <div class="sheet" id="sheet" role="dialog" aria-live="polite">
   <div class="badge" id="badge"></div>
-  <p class="name" id="pName"></p>
-  <p class="code" id="pCode"></p>
+  <div class="info-row" id="infoRow">
+    <p class="name" id="pName"></p>
+    <p class="code" id="pCode"></p>
+  </div>
   <div class="actions">
     <button class="btn-ghost" id="btnCancel">Mégse</button>
     <button class="btn-ok" id="btnAccept">Elfogad</button>
@@ -178,7 +192,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAzXfTNTXJyf0DkdWejm6UQOv90dn67NnA",
@@ -193,18 +207,20 @@
   const db = getFirestore(app);
 
   const $ = id => document.getElementById(id);
-  const finder = $('finder'), sheet = $('sheet'), backdrop = $('backdrop');
+  const finder = $('finder'), sheet = $('sheet'), backdrop = $('backdrop'), infoRow = $('infoRow');
   const btnAccept = $('btnAccept'), btnCancel = $('btnCancel');
 
   const ICONS = {
     ok:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>',
     warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>',
-    err:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+    err:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    ask:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.7-2.2 2-2.5 3.5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>'
   };
 
   let scanner = null;
-  let busy = false;        // beolvasás feldolgozás alatt / lap nyitva
-  let current = null;      // { code, ref }
+  let busy = false;          // beolvasás feldolgozás alatt / lap nyitva
+  let stage = 'checkin';     // 'checkin' | 'training'
+  let current = null;        // { code, ref, name }
 
   function setStatus(live, text){
     $('dot').classList.toggle('live', live);
@@ -215,20 +231,22 @@
     finder.classList.add('locked', kind);
   }
   function unlockFinder(){
-    finder.classList.remove('locked', 'ok', 'warn', 'err');
+    finder.classList.remove('locked', 'ok', 'warn', 'err', 'ask');
   }
 
-  function openSheet({ kind, badge, name, code, acceptable }){
+  function openSheet({ kind, badge, name, code, acceptable, acceptLabel, cancelLabel }){
     sheet.className = 'sheet ' + kind;
     $('badge').innerHTML = ICONS[kind] + '<span>' + badge + '</span>';
     $('pName').textContent = name;
-    $('pCode').textContent = code;
+    $('pCode').textContent = code || '';
+    $('pCode').style.display = code ? '' : 'none';
+    infoRow.classList.remove('accepted');
+
     btnAccept.classList.toggle('hidden', !acceptable);
-    btnCancel.textContent = acceptable ? 'Mégse' : 'Vissza';
-    btnCancel.style.flex = acceptable ? '1' : '1';
     btnAccept.disabled = false;
-    btnAccept.textContent = 'Elfogad';
-    // kis késleltetés, hogy az animáció induljon
+    btnAccept.textContent = acceptLabel || 'Elfogad';
+    btnCancel.textContent = cancelLabel || (acceptable ? 'Mégse' : 'Vissza');
+
     requestAnimationFrame(() => {
       sheet.classList.add('show');
       backdrop.classList.add('show');
@@ -240,10 +258,16 @@
     backdrop.classList.remove('show');
   }
 
+  function playSuccessStamp(){
+    if (navigator.vibrate) navigator.vibrate([40, 40, 80]);
+    const st = $('stamp'); st.classList.remove('go'); void st.offsetWidth; st.classList.add('go');
+  }
+
   function resumeScanning(){
     closeSheet();
     unlockFinder();
     current = null;
+    stage = 'checkin';
     $('hint').textContent = 'Tartsd a QR kódot a keretbe';
     setStatus(true, 'Beolvasásra kész');
     try { scanner.resume(); } catch(e) {}
@@ -254,6 +278,7 @@
   async function onScanSuccess(decodedText){
     if (busy) return;
     busy = true;
+    stage = 'checkin';
 
     try { scanner.pause(true); } catch(e) {}
     if (navigator.vibrate) navigator.vibrate(60);
@@ -272,14 +297,14 @@
       if (!snap.exists()) throw { invalid:true };
 
       const data = snap.data();
-      current = { code, ref };
+      current = { code, ref, name: data.name || code };
 
       if (data.checkedIn){
         lockFinder('warn');
-        openSheet({ kind:'warn', badge:'Már bent van', name:data.name || code, code, acceptable:false });
+        openSheet({ kind:'warn', badge:'Már bent van', name:current.name, code, acceptable:false });
       } else {
         lockFinder('ok');
-        openSheet({ kind:'ok', badge:'Érvényes jegy', name:data.name || code, code, acceptable:true });
+        openSheet({ kind:'ok', badge:'Érvényes jegy', name:current.name, code, acceptable:true });
       }
       $('hint').textContent = '';
       setStatus(false, 'Megerősítésre vár');
@@ -295,13 +320,12 @@
     }
   }
 
-  btnAccept.addEventListener('click', async () => {
-    if (!current) return;
+  // Belépés jóváhagyása -> tranzakció, majd a továbbképzés kérdés
+  async function handleCheckin(){
     btnAccept.disabled = true;
     btnAccept.textContent = 'Mentés…';
 
     try {
-      // Tranzakció: ha közben másik telefon már beléptette, nem írjuk felül
       const result = await runTransaction(db, async (tx) => {
         const s = await tx.get(current.ref);
         if (!s.exists()) return 'missing';
@@ -311,15 +335,10 @@
       });
 
       if (result === 'done'){
-        if (navigator.vibrate) navigator.vibrate([40, 40, 80]);
-        const st = $('stamp'); st.classList.remove('go'); void st.offsetWidth; st.classList.add('go');
-        closeSheet();
-        setStatus(false, 'Belépés rögzítve');
-        $('hint').textContent = 'Sikeres belépés';
-        setTimeout(resumeScanning, 1300);
+        askTraining();
       } else if (result === 'already'){
-        lockFinder('warn'); finder.classList.remove('ok');
-        openSheet({ kind:'warn', badge:'Már bent van', name:$('pName').textContent, code:current.code, acceptable:false });
+        finder.classList.remove('ok'); lockFinder('warn');
+        openSheet({ kind:'warn', badge:'Már bent van', name:current.name, code:current.code, acceptable:false });
       } else {
         lockFinder('err');
         openSheet({ kind:'err', badge:'Érvénytelen kód', name:'Nincs ilyen jegy', code:current.code, acceptable:false });
@@ -330,10 +349,83 @@
       $('badge').innerHTML = ICONS.err + '<span>Nem sikerült menteni</span>';
       sheet.className = 'sheet err show';
     }
+  }
+
+  // Második kérdés: szakmai továbbképzés elfogadása
+  function askTraining(){
+    stage = 'training';
+    finder.classList.remove('locked', 'ok', 'warn', 'err');
+    lockFinder('ask');
+    openSheet({
+      kind:'ask',
+      badge:'Megerősítés szükséges',
+      name:'Szakmai továbbképzés elfogadása',
+      code: current.name,
+      acceptable:true,
+      acceptLabel:'Igen',
+      cancelLabel:'Nem'
+    });
+    $('hint').textContent = '';
+    setStatus(false, 'Megerősítésre vár');
+  }
+
+  async function handleTrainingYes(){
+    btnAccept.disabled = true;
+    btnAccept.textContent = 'Mentés…';
+
+    try {
+      await updateDoc(current.ref, {
+        trainingAccepted: true,
+        trainingAcceptedAt: new Date().toISOString()
+      });
+
+      // a sor kiemelése, mielőtt a lap bezáródik
+      infoRow.classList.add('accepted');
+      $('badge').innerHTML = ICONS.ok + '<span>Továbbképzés elfogadva</span>';
+      sheet.className = 'sheet ok show';
+      btnAccept.classList.add('hidden');
+      btnCancel.classList.add('hidden');
+
+      setTimeout(() => {
+        btnCancel.classList.remove('hidden');
+        closeSheet();
+        playSuccessStamp();
+        setStatus(false, 'Belépés rögzítve');
+        $('hint').textContent = 'Sikeres belépés';
+        setTimeout(resumeScanning, 1300);
+      }, 900);
+    } catch (e) {
+      btnAccept.disabled = false;
+      btnAccept.textContent = 'Újra';
+      $('badge').innerHTML = ICONS.err + '<span>Nem sikerült menteni</span>';
+      sheet.className = 'sheet err show';
+    }
+  }
+
+  function handleTrainingNo(){
+    closeSheet();
+    playSuccessStamp();
+    setStatus(false, 'Belépés rögzítve');
+    $('hint').textContent = 'Sikeres belépés';
+    setTimeout(resumeScanning, 1300);
+  }
+
+  btnAccept.addEventListener('click', () => {
+    if (!current) return;
+    if (stage === 'checkin') handleCheckin();
+    else if (stage === 'training') handleTrainingYes();
   });
 
-  btnCancel.addEventListener('click', resumeScanning);
-  backdrop.addEventListener('click', () => { if (!btnAccept.disabled) resumeScanning(); });
+  btnCancel.addEventListener('click', () => {
+    if (stage === 'training') handleTrainingNo();
+    else resumeScanning();
+  });
+
+  backdrop.addEventListener('click', () => {
+    if (btnAccept.disabled) return;
+    if (stage === 'training') handleTrainingNo();
+    else resumeScanning();
+  });
 
   async function startCamera(){
     $('camerr').classList.remove('show');
