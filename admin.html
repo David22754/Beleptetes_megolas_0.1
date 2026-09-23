@@ -57,7 +57,6 @@
   .badge{ font-size:.7rem; padding:2px 6px; border-radius:10px; font-weight:600; }
   .badge.in{ background:var(--good-bg); color:var(--good); }
   .badge.out{ background:var(--border); color:var(--text-dim); }
-  .badge.cert{ background:rgba(227,168,87,.16); color:var(--accent); }
 
   .bulk-bar{ display:flex; gap:10px; align-items:center; background:var(--panel-alt); border:1px solid var(--border); padding:10px 14px; border-radius:10px; margin-bottom:12px; }
   .bulk-bar label{ margin:0; cursor:pointer; display:flex; align-items:center; gap:6px; color:var(--text); font-size:.85rem; }
@@ -71,8 +70,6 @@
   .modal-card h3{ margin:0 0 6px 0; font-family:'Fraunces', serif; font-size:1.3rem; word-break:break-word; }
   .modal-card p{ margin:0 0 16px 0; color:var(--text-dim); font-size:.8rem; }
   .modal-qr{ background:#fff; padding:16px; border-radius:12px; display:inline-block; margin-bottom:16px; }
-  .modal-actions{ display:flex; gap:10px; justify-content:center; }
-  .empty-hint{ color:var(--text-dim); font-size:.82rem; padding:16px 0; text-align:center; }
 </style>
 </head>
 <body>
@@ -86,7 +83,6 @@
   <nav class="tabs">
     <button data-view="admin" class="active">Résztvevők</button>
     <button data-view="display">Kivetítő</button>
-    <button data-view="training">Továbbképzés</button>
   </nav>
 
   <section class="view active" id="view-admin">
@@ -135,20 +131,6 @@
       </table>
     </div>
   </section>
-
-  <section class="view" id="view-training">
-    <div class="panel">
-      <h2 class="display-title">Igazolt Szakmai Továbbképzés</h2>
-      <div style="margin-bottom:15px; font-size:1.1rem;">
-        Igazolták: <b id="stat-cert" style="color:var(--accent);">0</b>
-      </div>
-      <table>
-        <thead><tr><th>Kód</th><th>Név</th><th>Jelenlegi státusz</th><th>Igazolás ideje</th></tr></thead>
-        <tbody id="training-tbody"></tbody>
-      </table>
-      <div class="empty-hint" id="training-empty" style="display:none;">Még senki nem igazolta a szakmai továbbképzést.</div>
-    </div>
-  </section>
 </div>
 
 <div class="modal-backdrop" id="qr-modal">
@@ -158,17 +140,6 @@
     <div class="modal-qr" id="modal-qr-box"></div>
     <div>
       <button class="btn ghost" id="modal-close-btn">Bezárás</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-backdrop" id="training-modal">
-  <div class="modal-card">
-    <h3>Szakmai továbbképzés</h3>
-    <p id="training-modal-text">Igazolja <b id="training-modal-name"></b> a szakmai továbbképzést?</p>
-    <div class="modal-actions">
-      <button class="btn ghost" id="training-no-btn">Nem</button>
-      <button class="btn" id="training-yes-btn">Igen</button>
     </div>
   </div>
 </div>
@@ -193,7 +164,6 @@
 
   var participants = [];
   var selectedIds = new Set();
-  var pendingTrainingId = null;
 
   var tabs = document.querySelectorAll('nav.tabs button');
   tabs.forEach(btn => {
@@ -219,9 +189,7 @@
     await setDoc(doc(db, "participants", code), {
       name: name,
       checkedIn: false,
-      checkedInAt: null,
-      trainingCertified: false,
-      trainingCertifiedAt: null
+      checkedInAt: null
     });
     input.value = '';
   });
@@ -289,9 +257,7 @@
             await setDoc(doc(db, "participants", code), {
               name: extractedName,
               checkedIn: false,
-              checkedInAt: null,
-              trainingCertified: false,
-              trainingCertifiedAt: null
+              checkedInAt: null
             });
             added++;
           }
@@ -352,36 +318,6 @@
   document.getElementById('modal-close-btn').onclick = () => modal.classList.remove('active');
   modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('active'); };
 
-  // Szakmai továbbképzés megerősítő modal
-  const trainingModal = document.getElementById('training-modal');
-  const trainingModalName = document.getElementById('training-modal-name');
-
-  function openTrainingModal(id, name) {
-    pendingTrainingId = id;
-    trainingModalName.textContent = name;
-    trainingModal.classList.add('active');
-  }
-
-  function closeTrainingModal() {
-    pendingTrainingId = null;
-    trainingModal.classList.remove('active');
-  }
-
-  document.getElementById('training-yes-btn').onclick = async () => {
-    if (!pendingTrainingId) return;
-    await updateDoc(doc(db, "participants", pendingTrainingId), {
-      trainingCertified: true,
-      trainingCertifiedAt: new Date().toISOString()
-    });
-    closeTrainingModal();
-  };
-
-  document.getElementById('training-no-btn').onclick = () => {
-    closeTrainingModal();
-  };
-
-  trainingModal.onclick = (e) => { if (e.target === trainingModal) closeTrainingModal(); };
-
   function render() {
     const q = document.getElementById('search').value.toLowerCase();
     const listEl = document.getElementById('plist');
@@ -400,7 +336,6 @@
         <div class="qr" id="qr-${p.id}" title="Nagyítás"></div>
         <div class="info"><b title="${p.name}">${p.name}</b><small>${p.id}</small></div>
         <span class="badge ${p.checkedIn ? 'in' : 'out'}">${p.checkedIn ? 'BENN' : 'VÁR'}</span>
-        ${p.trainingCertified ? '<span class="badge cert" title="Igazolt szakmai továbbképzés">TK ✓</span>' : ''}
         <button class="btn small ghost toggle-btn">${p.checkedIn ? 'Kiléptetés' : 'Beléptetés'}</button>
         <button class="btn small danger del-btn">X</button>`;
       
@@ -417,16 +352,11 @@
         selectAllCb.checked = filtered.every(item => selectedIds.has(item.id));
       };
 
-      row.querySelector('.toggle-btn').onclick = async () => {
-        const goingIn = !p.checkedIn;
-        await updateDoc(doc(db, "participants", p.id), {
-          checkedIn: goingIn,
-          checkedInAt: goingIn ? new Date().toISOString() : null
+      row.querySelector('.toggle-btn').onclick = () => {
+        updateDoc(doc(db, "participants", p.id), {
+          checkedIn: !p.checkedIn,
+          checkedInAt: !p.checkedIn ? new Date().toISOString() : null
         });
-        // Csak beléptetéskor kérdezünk rá a szakmai továbbképzésre
-        if (goingIn) {
-          openTrainingModal(p.id, p.name);
-        }
       };
       row.querySelector('.del-btn').onclick = () => {
         deleteDoc(doc(db, "participants", p.id));
@@ -445,20 +375,6 @@
         <td>${p.checkedInAt ? new Date(p.checkedInAt).toLocaleTimeString() : '—'}</td>
       </tr>
     `).join('');
-
-    // Továbbképzést igazolók listája (a résztvevő emellett a Résztvevők fülön is megmarad)
-    const certified = participants.filter(p => p.trainingCertified);
-    document.getElementById('stat-cert').textContent = certified.length;
-    const trainingTbody = document.getElementById('training-tbody');
-    trainingTbody.innerHTML = certified.map(p => `
-      <tr>
-        <td><code>${p.id}</code></td>
-        <td><b>${p.name}</b></td>
-        <td><span class="badge ${p.checkedIn ? 'in' : 'out'}">${p.checkedIn ? 'BENN' : 'VÁR'}</span></td>
-        <td>${p.trainingCertifiedAt ? new Date(p.trainingCertifiedAt).toLocaleString() : '—'}</td>
-      </tr>
-    `).join('');
-    document.getElementById('training-empty').style.display = certified.length ? 'none' : 'block';
   }
 
   document.getElementById('search').addEventListener('input', render);
