@@ -158,6 +158,10 @@
     <div class="panel">
       <h2 class="display-title">Elfogadott továbbképzések</h2>
       <p style="color:var(--text-dim); font-size:.82rem; margin-top:-6px;">
+        Csak azok a résztvevők szerepelnek, akiknél a Kivetítő fülön a Továbbképzés ELFOGADVA státuszú.
+        A Kamarai szám oszlop azt mutatja, amit a résztvevő a beolvasónál a továbbképzés elfogadása után megadott.
+        A táblázat gombbal Excelbe / Google Táblázatba beilleszthető formában másolható.
+      </p>
       <div class="export-bar">
         <div class="count"><b id="export-count">0</b> résztvevő</div>
         <div>
@@ -166,7 +170,7 @@
         </div>
       </div>
       <table id="export-table">
-        <thead><tr><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>KSH szám</th><th>Belépés ideje</th></tr></thead>
+        <thead><tr><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>Kamarai szám</th><th>Belépés ideje</th></tr></thead>
         <tbody id="export-tbody"></tbody>
       </table>
       <div class="empty-note" id="export-empty" style="display:none;">Egyelőre senki nem fogadta el a továbbképzést.</div>
@@ -326,8 +330,8 @@
       checkedInAt: null,
       trainingAccepted: false,
       trainingAcceptedAt: null,
-      kshNumber: null,
-      kshNumberAt: null
+      chamberNumber: null,
+      chamberNumberAt: null
     });
     input.value = '';
   });
@@ -398,8 +402,8 @@
               checkedInAt: null,
               trainingAccepted: false,
               trainingAcceptedAt: null,
-              kshNumber: null,
-              kshNumberAt: null
+              chamberNumber: null,
+              chamberNumberAt: null
             });
             added++;
           }
@@ -503,7 +507,7 @@
     }
   };
 
-  // Táblázat fül: csak az elfogadott továbbképzésűek, KSH számmal és belépési idővel, másolható formátumban
+  // Táblázat fül: csak az elfogadott továbbképzésűek, Kamarai számmal és belépési idővel, másolható formátumban
   const copyBtn = document.getElementById('copy-btn');
   const copyMsg = document.getElementById('copy-msg');
 
@@ -521,7 +525,7 @@
         <td class="mono">${p.id}</td>
         <td>${p.name}</td>
         <td>Elfogadva</td>
-        <td class="mono ${p.kshNumber ? '' : 'missing'}">${p.kshNumber ? p.kshNumber : '—'}</td>
+        <td class="mono ${p.chamberNumber ? '' : 'missing'}">${p.chamberNumber ? p.chamberNumber : '—'}</td>
         <td class="${checkinTime ? '' : 'missing'}">${checkinTime ? checkinTime : '—'}</td>
       </tr>
     `;
@@ -530,8 +534,8 @@
 
   copyBtn.addEventListener('click', async () => {
     const trained = participants.filter(p => p.trainingAccepted);
-    const header = ['Kód', 'Név', 'Továbbképzés', 'KSH szám', 'Belépés ideje'];
-    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.kshNumber || '', formatDateTime(p.checkedInAt) || '']);
+    const header = ['Kód', 'Név', 'Továbbképzés', 'Kamarai szám', 'Belépés ideje'];
+    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.chamberNumber || '', formatDateTime(p.checkedInAt) || '']);
     const tsv = [header, ...rows].map(r => r.join('\t')).join('\n');
 
     try {
