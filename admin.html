@@ -72,7 +72,8 @@
 
   .export-bar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
   .export-bar .count{ color:var(--text-dim); font-size:.8rem; }
-  .copy-msg{ font-size:.78rem; color:var(--good); margin-left:10px; opacity:0; transition:opacity .2s; }
+  .export-actions{ display:flex; align-items:center; gap:8px; }
+  .copy-msg{ font-size:.78rem; color:var(--good); opacity:0; transition:opacity .2s; }
   .copy-msg.show{ opacity:1; }
   #export-table th{ color:var(--text-dim); font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; }
   #export-table td.mono{ font-family:'IBM Plex Mono', monospace; }
@@ -159,17 +160,28 @@
       <h2 class="display-title">Elfogadott továbbképzések</h2>
       <div class="export-bar">
         <div class="count"><b id="export-count">0</b> résztvevő</div>
-        <div>
+        <div class="export-actions">
+          <button class="btn small ghost" id="export-checkout-btn">Kiléptetés</button>
           <button class="btn small" id="copy-btn">Táblázat másolása</button>
           <span class="copy-msg" id="copy-msg">Másolva!</span>
         </div>
       </div>
       
-      <!-- UJ KERESŐMEZŐ A TÁBLÁZATHOZ -->
-      <input type="text" id="export-search" placeholder="Keresés (kód, név, kamarai szám, belépés alapján)..." style="margin-bottom:12px;">
+      <!-- KERESŐMEZŐ A TÁBLÁZATHOZ -->
+      <input type="text" id="export-search" placeholder="Keresés (kód, név, kamarai szám, belépés/kilépés alapján)..." style="margin-bottom:12px;">
 
       <table id="export-table">
-        <thead><tr><th style="width:34px;"><input type="checkbox" id="export-select-all" class="select-box"></th><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>Kamarai szám</th><th>Belépés ideje</th></tr></thead>
+        <thead>
+          <tr>
+            <th style="width:34px;"><input type="checkbox" id="export-select-all" class="select-box"></th>
+            <th>Kód</th>
+            <th>Név</th>
+            <th>Továbbképzés</th>
+            <th>Kamarai szám</th>
+            <th>Belépés ideje</th>
+            <th>Kilépés ideje</th>
+          </tr>
+        </thead>
         <tbody id="export-tbody"></tbody>
       </table>
       <div class="empty-note" id="export-empty" style="display:none;">Nincs a szűrésnek megfelelő találat.</div>
@@ -326,6 +338,7 @@
       name: name,
       checkedIn: false,
       checkedInAt: null,
+      checkedOutAt: null,
       trainingAccepted: false,
       trainingAcceptedAt: null,
       chamberNumber: null,
@@ -398,6 +411,7 @@
               name: extractedName,
               checkedIn: false,
               checkedInAt: null,
+              checkedOutAt: null,
               trainingAccepted: false,
               trainingAcceptedAt: null,
               chamberNumber: null,
@@ -436,7 +450,7 @@
 
   document.getElementById('bulk-out-btn').onclick = async () => {
     for (let id of selectedIds) {
-      await updateDoc(doc(db, "participants", id), { checkedIn: false, checkedInAt: null });
+      await updateDoc(doc(db, "participants", id), { checkedIn: false, checkedOutAt: new Date().toISOString() });
     }
   };
 
@@ -504,9 +518,26 @@
     }
   };
 
-  // Táblázat fül: keresés és megjelenítés
+  // Táblázat fül: keresés, kiléptetés és megjelenítés
   const copyBtn = document.getElementById('copy-btn');
   const copyMsg = document.getElementById('copy-msg');
+  const exportCheckoutBtn = document.getElementById('export-checkout-btn');
+
+  // Új Kiléptetés gomb működése a Táblázat fülön
+  exportCheckoutBtn.addEventListener('click', async () => {
+    if (selectedIds.size === 0) {
+      alert('Nincs kijelölve egyetlen résztvevő sem!');
+      return;
+    }
+    
+    const nowIso = new Date().toISOString();
+    for (let id of selectedIds) {
+      await updateDoc(doc(db, "participants", id), { 
+        checkedIn: false, 
+        checkedOutAt: nowIso 
+      });
+    }
+  });
 
   function renderExport(){
     const searchVal = document.getElementById('export-search').value.toLowerCase().trim();
@@ -516,12 +547,14 @@
       if (!p.trainingAccepted) return false;
       
       const checkinTime = formatDateTime(p.checkedInAt) || '';
+      const checkoutTime = formatDateTime(p.checkedOutAt) || '';
       const chamberNum = p.chamberNumber || '';
       
       return p.id.toLowerCase().includes(searchVal) ||
              p.name.toLowerCase().includes(searchVal) ||
              chamberNum.toLowerCase().includes(searchVal) ||
-             checkinTime.toLowerCase().includes(searchVal);
+             checkinTime.toLowerCase().includes(searchVal) ||
+             checkoutTime.toLowerCase().includes(searchVal);
     });
 
     const tbody = document.getElementById('export-tbody');
@@ -531,6 +564,7 @@
 
     tbody.innerHTML = trained.map(p => {
       const checkinTime = formatDateTime(p.checkedInAt);
+      const checkoutTime = formatDateTime(p.checkedOutAt);
       const isChecked = selectedIds.has(p.id) ? 'checked' : '';
       return `
       <tr>
@@ -540,6 +574,7 @@
         <td>Elfogadva</td>
         <td class="mono ${p.chamberNumber ? '' : 'missing'}">${p.chamberNumber ? p.chamberNumber : '—'}</td>
         <td class="${checkinTime ? '' : 'missing'}">${checkinTime ? checkinTime : '—'}</td>
+        <td class="${checkoutTime ? '' : 'missing'}">${checkoutTime ? checkoutTime : '—'}</td>
       </tr>
     `;
     }).join('');
@@ -566,15 +601,17 @@
     const trained = participants.filter(p => {
       if (!p.trainingAccepted) return false;
       const checkinTime = formatDateTime(p.checkedInAt) || '';
+      const checkoutTime = formatDateTime(p.checkedOutAt) || '';
       const chamberNum = p.chamberNumber || '';
       return p.id.toLowerCase().includes(searchVal) ||
              p.name.toLowerCase().includes(searchVal) ||
              chamberNum.toLowerCase().includes(searchVal) ||
-             checkinTime.toLowerCase().includes(searchVal);
+             checkinTime.toLowerCase().includes(searchVal) ||
+             checkoutTime.toLowerCase().includes(searchVal);
     });
 
-    const header = ['Kód', 'Név', 'Továbbképzés', 'Kamarai szám', 'Belépés ideje'];
-    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.chamberNumber || '', formatDateTime(p.checkedInAt) || '']);
+    const header = ['Kód', 'Név', 'Továbbképzés', 'Kamarai szám', 'Belépés ideje', 'Kilépés ideje'];
+    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.chamberNumber || '', formatDateTime(p.checkedInAt) || '', formatDateTime(p.checkedOutAt) || '']);
     const tsv = [header, ...rows].map(r => r.join('\t')).join('\n');
 
     try {
@@ -630,9 +667,11 @@
       };
 
       row.querySelector('.toggle-btn').onclick = () => {
+        const nowIso = new Date().toISOString();
         updateDoc(doc(db, "participants", p.id), {
           checkedIn: !p.checkedIn,
-          checkedInAt: !p.checkedIn ? new Date().toISOString() : null
+          checkedInAt: !p.checkedIn ? nowIso : p.checkedInAt,
+          checkedOutAt: p.checkedIn ? nowIso : p.checkedOutAt
         });
       };
       row.querySelector('.del-btn').onclick = () => {
