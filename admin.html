@@ -170,7 +170,7 @@
         </div>
       </div>
       <table id="export-table">
-        <thead><tr><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>KSH szám</th></tr></thead>
+        <thead><tr><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>KSH szám</th><th>Belépés ideje</th></tr></thead>
         <tbody id="export-tbody"></tbody>
       </table>
       <div class="empty-note" id="export-empty" style="display:none;">Egyelőre senki nem fogadta el a továbbképzést.</div>
@@ -227,6 +227,13 @@
     snapshot.forEach((doc) => participants.push({ id: doc.id, ...doc.data() }));
     render();
   });
+
+  function formatDateTime(iso){
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('hu-HU') + ' ' + d.toLocaleTimeString('hu-HU');
+  }
 
   // ---- QR kártya kép generálása (a mintakép stílusában) és letöltése ----
 
@@ -500,7 +507,7 @@
     }
   };
 
-  // Táblázat fül: csak az elfogadott továbbképzésűek, KSH számmal, másolható formátumban
+  // Táblázat fül: csak az elfogadott továbbképzésűek, KSH számmal és belépési idővel, másolható formátumban
   const copyBtn = document.getElementById('copy-btn');
   const copyMsg = document.getElementById('copy-msg');
 
@@ -511,20 +518,24 @@
     document.getElementById('export-empty').style.display = trained.length ? 'none' : 'block';
     document.getElementById('export-table').style.display = trained.length ? '' : 'none';
 
-    tbody.innerHTML = trained.map(p => `
+    tbody.innerHTML = trained.map(p => {
+      const checkinTime = formatDateTime(p.checkedInAt);
+      return `
       <tr>
         <td class="mono">${p.id}</td>
         <td>${p.name}</td>
         <td>Elfogadva</td>
         <td class="mono ${p.kshNumber ? '' : 'missing'}">${p.kshNumber ? p.kshNumber : '—'}</td>
+        <td class="${checkinTime ? '' : 'missing'}">${checkinTime ? checkinTime : '—'}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
   }
 
   copyBtn.addEventListener('click', async () => {
     const trained = participants.filter(p => p.trainingAccepted);
-    const header = ['Kód', 'Név', 'Továbbképzés', 'KSH szám'];
-    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.kshNumber || '']);
+    const header = ['Kód', 'Név', 'Továbbképzés', 'KSH szám', 'Belépés ideje'];
+    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.kshNumber || '', formatDateTime(p.checkedInAt) || '']);
     const tsv = [header, ...rows].map(r => r.join('\t')).join('\n');
 
     try {
