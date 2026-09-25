@@ -76,6 +76,7 @@
   .copy-msg.show{ opacity:1; }
   #export-table th{ color:var(--text-dim); font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; }
   #export-table td.mono{ font-family:'IBM Plex Mono', monospace; }
+  #export-table td.missing{ color:var(--text-dim); }
   .empty-note{ color:var(--text-dim); font-size:.82rem; padding:14px 4px; }
 
   .modal-backdrop{ position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:999; backdrop-filter:blur(4px); }
@@ -157,7 +158,9 @@
     <div class="panel">
       <h2 class="display-title">Elfogadott továbbképzések</h2>
       <p style="color:var(--text-dim); font-size:.82rem; margin-top:-6px;">
-        Továbbképzés
+        Csak azok a résztvevők szerepelnek, akiknél a Kivetítő fülön a Továbbképzés ELFOGADVA státuszú.
+        A KSH szám oszlop azt mutatja, amit a résztvevő a beolvasónál a továbbképzés elfogadása után megadott.
+        A táblázat gombbal Excelbe / Google Táblázatba beilleszthető formában másolható.
       </p>
       <div class="export-bar">
         <div class="count"><b id="export-count">0</b> résztvevő</div>
@@ -167,7 +170,7 @@
         </div>
       </div>
       <table id="export-table">
-        <thead><tr><th>Kód</th><th>Név</th><th>Továbbképzés</th></tr></thead>
+        <thead><tr><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>KSH szám</th></tr></thead>
         <tbody id="export-tbody"></tbody>
       </table>
       <div class="empty-note" id="export-empty" style="display:none;">Egyelőre senki nem fogadta el a továbbképzést.</div>
@@ -319,7 +322,9 @@
       checkedIn: false,
       checkedInAt: null,
       trainingAccepted: false,
-      trainingAcceptedAt: null
+      trainingAcceptedAt: null,
+      kshNumber: null,
+      kshNumberAt: null
     });
     input.value = '';
   });
@@ -389,7 +394,9 @@
               checkedIn: false,
               checkedInAt: null,
               trainingAccepted: false,
-              trainingAcceptedAt: null
+              trainingAcceptedAt: null,
+              kshNumber: null,
+              kshNumberAt: null
             });
             added++;
           }
@@ -493,7 +500,7 @@
     }
   };
 
-  // Táblázat fül: csak az elfogadott továbbképzésűek, másolható formátumban
+  // Táblázat fül: csak az elfogadott továbbképzésűek, KSH számmal, másolható formátumban
   const copyBtn = document.getElementById('copy-btn');
   const copyMsg = document.getElementById('copy-msg');
 
@@ -509,14 +516,15 @@
         <td class="mono">${p.id}</td>
         <td>${p.name}</td>
         <td>Elfogadva</td>
+        <td class="mono ${p.kshNumber ? '' : 'missing'}">${p.kshNumber ? p.kshNumber : '—'}</td>
       </tr>
     `).join('');
   }
 
   copyBtn.addEventListener('click', async () => {
     const trained = participants.filter(p => p.trainingAccepted);
-    const header = ['Kód', 'Név', 'Továbbképzés'];
-    const rows = trained.map(p => [p.id, p.name, 'Elfogadva']);
+    const header = ['Kód', 'Név', 'Továbbképzés', 'KSH szám'];
+    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.kshNumber || '']);
     const tsv = [header, ...rows].map(r => r.join('\t')).join('\n');
 
     try {
