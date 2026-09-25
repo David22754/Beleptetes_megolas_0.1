@@ -26,7 +26,6 @@
   .btn.danger{ border-color:var(--bad); color:var(--bad); background:transparent; }
   .btn:disabled{ opacity:.5; cursor:default; }
   
-
   .drop-zone {
     border: 2px dashed var(--border);
     border-radius: 10px;
@@ -72,12 +71,15 @@
 
   .export-bar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
   .export-bar .count{ color:var(--text-dim); font-size:.8rem; }
-  .copy-msg{ font-size:.78rem; color:var(--good); margin-left:10px; opacity:0; transition:opacity .2s; }
+  .export-actions{ display:flex; align-items:center; gap:8px; }
+  .copy-msg{ font-size:.78rem; color:var(--good); opacity:0; transition:opacity .2s; }
   .copy-msg.show{ opacity:1; }
   #export-table th{ color:var(--text-dim); font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; }
   #export-table td.mono{ font-family:'IBM Plex Mono', monospace; }
   #export-table td.missing{ color:var(--text-dim); }
   .empty-note{ color:var(--text-dim); font-size:.82rem; padding:14px 4px; }
+
+  .load-more-container{ text-align:center; margin-top:15px; }
 
   .modal-backdrop{ position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:999; backdrop-filter:blur(4px); }
   .modal-backdrop.active{ display:flex; }
@@ -105,6 +107,7 @@
     <button data-view="export">Táblázat</button>
   </nav>
 
+  <!-- 1. FÜL: RÉSZTVEVŐK -->
   <section class="view active" id="view-admin">
     <div class="panel">
       <label>Egyéni résztvevő hozzáadása</label>
@@ -139,8 +142,12 @@
     <div class="bulk-progress" id="bulk-progress"></div>
 
     <div id="plist"></div>
+    <div class="load-more-container">
+      <button class="btn ghost" id="admin-load-more" style="display:none; width:100%;">Továbbiak betöltése</button>
+    </div>
   </section>
 
+  <!-- 2. FÜL: KIVETÍTŐ -->
   <section class="view" id="view-display">
     <div class="panel">
       <h2 class="display-title">Beléptetés Állapota</h2>
@@ -151,28 +158,45 @@
         <thead><tr><th>Kód</th><th>Név</th><th>Státusz</th><th>Továbbképzés</th><th>Idő</th></tr></thead>
         <tbody id="display-tbody"></tbody>
       </table>
+      <div class="load-more-container">
+        <button class="btn ghost" id="display-load-more" style="display:none; width:100%;">Továbbiak betöltése</button>
+      </div>
     </div>
   </section>
 
+  <!-- 3. FÜL: TÁBLÁZAT -->
   <section class="view" id="view-export">
     <div class="panel">
       <h2 class="display-title">Elfogadott továbbképzések</h2>
       <div class="export-bar">
         <div class="count"><b id="export-count">0</b> résztvevő</div>
-        <div>
+        <div class="export-actions">
+          <button class="btn small ghost" id="export-checkout-btn">Kiléptetés</button>
           <button class="btn small" id="copy-btn">Táblázat másolása</button>
           <span class="copy-msg" id="copy-msg">Másolva!</span>
         </div>
       </div>
       
-      <!-- UJ KERESŐMEZŐ A TÁBLÁZATHOZ -->
-      <input type="text" id="export-search" placeholder="Keresés (kód, név, kamarai szám, belépés alapján)..." style="margin-bottom:12px;">
+      <input type="text" id="export-search" placeholder="Keresés (kód, név, kamarai szám, belépés/kilépés alapján)..." style="margin-bottom:12px;">
 
       <table id="export-table">
-        <thead><tr><th style="width:34px;"><input type="checkbox" id="export-select-all" class="select-box"></th><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>Kamarai szám</th><th>Belépés ideje</th></tr></thead>
+        <thead>
+          <tr>
+            <th style="width:34px;"><input type="checkbox" id="export-select-all" class="select-box"></th>
+            <th>Kód</th>
+            <th>Név</th>
+            <th>Továbbképzés</th>
+            <th>Kamarai szám</th>
+            <th>Belépés ideje</th>
+            <th>Kilépés ideje</th>
+          </tr>
+        </thead>
         <tbody id="export-tbody"></tbody>
       </table>
       <div class="empty-note" id="export-empty" style="display:none;">Nincs a szűrésnek megfelelő találat.</div>
+      <div class="load-more-container">
+        <button class="btn ghost" id="export-load-more" style="display:none; width:100%;">Továbbiak betöltése</button>
+      </div>
     </div>
   </section>
 </div>
@@ -211,6 +235,11 @@
   var participants = [];
   var selectedIds = new Set();
 
+  // Külön korlátok mindhárom nézethez a maximális sebességért
+  let adminLimit = 30;
+  let displayLimit = 30;
+  let exportLimit = 30;
+
   var tabs = document.querySelectorAll('nav.tabs button');
   tabs.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -233,8 +262,6 @@
     if (isNaN(d.getTime())) return null;
     return d.toLocaleTimeString('hu-HU');
   }
-
-  // ---- QR kártya kép generálása (a mintakép stílusában) és letöltése ----
 
   function roundRect(ctx, x, y, w, h, r){
     ctx.beginPath();
@@ -315,8 +342,7 @@
     return dataUrl;
   }
 
-  // ---- Résztvevő hozzáadása ----
-
+  // ---- Egyéni hozzáadás ----
   document.getElementById('add-btn').addEventListener('click', async () => {
     const input = document.getElementById('new-name');
     const name = input.value.trim();
@@ -326,6 +352,7 @@
       name: name,
       checkedIn: false,
       checkedInAt: null,
+      checkedOutAt: null,
       trainingAccepted: false,
       trainingAcceptedAt: null,
       chamberNumber: null,
@@ -340,29 +367,16 @@
   const importResult = document.getElementById('import-result');
 
   dropZone.addEventListener('click', () => csvFile.click());
-
-  dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropZone.classList.add('dragover');
-  });
-
-  ['dragleave', 'dragend'].forEach(type => {
-    dropZone.addEventListener(type, () => dropZone.classList.remove('dragover'));
-  });
+  dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  ['dragleave', 'dragend'].forEach(type => dropZone.addEventListener(type, () => dropZone.classList.remove('dragover')));
 
   dropZone.addEventListener('drop', (e) => {
     e.preventDefault();
     dropZone.classList.remove('dragover');
-    if (e.dataTransfer.files.length) {
-      processCsvFile(e.dataTransfer.files[0]);
-    }
+    if (e.dataTransfer.files.length) processCsvFile(e.dataTransfer.files[0]);
   });
 
-  csvFile.addEventListener('change', () => {
-    if (csvFile.files.length) {
-      processCsvFile(csvFile.files[0]);
-    }
-  });
+  csvFile.addEventListener('change', () => { if (csvFile.files.length) processCsvFile(csvFile.files[0]); });
 
   function processCsvFile(file) {
     const reader = new FileReader();
@@ -398,6 +412,7 @@
               name: extractedName,
               checkedIn: false,
               checkedInAt: null,
+              checkedOutAt: null,
               trainingAccepted: false,
               trainingAcceptedAt: null,
               chamberNumber: null,
@@ -436,7 +451,7 @@
 
   document.getElementById('bulk-out-btn').onclick = async () => {
     for (let id of selectedIds) {
-      await updateDoc(doc(db, "participants", id), { checkedIn: false, checkedInAt: null });
+      await updateDoc(doc(db, "participants", id), { checkedIn: false, checkedOutAt: new Date().toISOString() });
     }
   };
 
@@ -504,33 +519,61 @@
     }
   };
 
-  // Táblázat fül: keresés és megjelenítés
+  // TOVÁBBIAK BETÖLTÉSE GOMBOK KELTÉSE (MIND3 FÜLÖN)
+  document.getElementById('admin-load-more').onclick = () => { adminLimit += 30; render(); };
+  document.getElementById('display-load-more').onclick = () => { displayLimit += 30; render(); };
+  document.getElementById('export-load-more').onclick = () => { exportLimit += 30; renderExport(); };
+
   const copyBtn = document.getElementById('copy-btn');
   const copyMsg = document.getElementById('copy-msg');
+  const exportCheckoutBtn = document.getElementById('export-checkout-btn');
 
+  exportCheckoutBtn.addEventListener('click', async () => {
+    if (selectedIds.size === 0) {
+      alert('Nincs kijelölve egyetlen résztvevő sem!');
+      return;
+    }
+    const nowIso = new Date().toISOString();
+    for (let id of selectedIds) {
+      await updateDoc(doc(db, "participants", id), { checkedIn: false, checkedOutAt: nowIso });
+    }
+  });
+
+  // 3. FÜL RENDERELÉSE (TÁBLÁZAT LAPOZÓVAL)
   function renderExport(){
     const searchVal = document.getElementById('export-search').value.toLowerCase().trim();
-    
-    // Szűrés továbbképzést elfogadottakra ÉS a kereső kifejezésre
+    const exportLoadMore = document.getElementById('export-load-more');
+
     const trained = participants.filter(p => {
       if (!p.trainingAccepted) return false;
-      
       const checkinTime = formatDateTime(p.checkedInAt) || '';
+      const checkoutTime = formatDateTime(p.checkedOutAt) || '';
       const chamberNum = p.chamberNumber || '';
       
       return p.id.toLowerCase().includes(searchVal) ||
              p.name.toLowerCase().includes(searchVal) ||
              chamberNum.toLowerCase().includes(searchVal) ||
-             checkinTime.toLowerCase().includes(searchVal);
+             checkinTime.toLowerCase().includes(searchVal) ||
+             checkoutTime.toLowerCase().includes(searchVal);
     });
+
+    const visibleTrained = trained.slice(0, exportLimit);
+
+    if (trained.length > exportLimit) {
+      exportLoadMore.style.display = 'block';
+      exportLoadMore.textContent = `Továbbiak betöltése (${visibleTrained.length} / ${trained.length})`;
+    } else {
+      exportLoadMore.style.display = 'none';
+    }
 
     const tbody = document.getElementById('export-tbody');
     document.getElementById('export-count').textContent = trained.length;
     document.getElementById('export-empty').style.display = trained.length ? 'none' : 'block';
     document.getElementById('export-table').style.display = trained.length ? '' : 'none';
 
-    tbody.innerHTML = trained.map(p => {
+    tbody.innerHTML = visibleTrained.map(p => {
       const checkinTime = formatDateTime(p.checkedInAt);
+      const checkoutTime = formatDateTime(p.checkedOutAt);
       const isChecked = selectedIds.has(p.id) ? 'checked' : '';
       return `
       <tr>
@@ -540,6 +583,7 @@
         <td>Elfogadva</td>
         <td class="mono ${p.chamberNumber ? '' : 'missing'}">${p.chamberNumber ? p.chamberNumber : '—'}</td>
         <td class="${checkinTime ? '' : 'missing'}">${checkinTime ? checkinTime : '—'}</td>
+        <td class="${checkoutTime ? '' : 'missing'}">${checkoutTime ? checkoutTime : '—'}</td>
       </tr>
     `;
     }).join('');
@@ -566,15 +610,17 @@
     const trained = participants.filter(p => {
       if (!p.trainingAccepted) return false;
       const checkinTime = formatDateTime(p.checkedInAt) || '';
+      const checkoutTime = formatDateTime(p.checkedOutAt) || '';
       const chamberNum = p.chamberNumber || '';
       return p.id.toLowerCase().includes(searchVal) ||
              p.name.toLowerCase().includes(searchVal) ||
              chamberNum.toLowerCase().includes(searchVal) ||
-             checkinTime.toLowerCase().includes(searchVal);
+             checkinTime.toLowerCase().includes(searchVal) ||
+             checkoutTime.toLowerCase().includes(searchVal);
     });
 
-    const header = ['Kód', 'Név', 'Továbbképzés', 'Kamarai szám', 'Belépés ideje'];
-    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.chamberNumber || '', formatDateTime(p.checkedInAt) || '']);
+    const header = ['Kód', 'Név', 'Továbbképzés', 'Kamarai szám', 'Belépés ideje', 'Kilépés ideje'];
+    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.chamberNumber || '', formatDateTime(p.checkedInAt) || '', formatDateTime(p.checkedOutAt) || '']);
     const tsv = [header, ...rows].map(r => r.join('\t')).join('\n');
 
     try {
@@ -592,15 +638,30 @@
     setTimeout(() => copyMsg.classList.remove('show'), 1600);
   });
 
+  // 1. ÉS 2. FÜL RENDERELÉSE (LAPOZÓKKAL)
   function render() {
     const q = document.getElementById('search').value.toLowerCase();
     const listEl = document.getElementById('plist');
+    const adminLoadMore = document.getElementById('admin-load-more');
+    const displayLoadMore = document.getElementById('display-load-more');
+
     listEl.innerHTML = '';
 
     const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
     selectAllCb.checked = filtered.length > 0 && filtered.every(p => selectedIds.has(p.id));
 
-    filtered.forEach(p => {
+    // 1. Fül levágás
+    const visibleAdmin = filtered.slice(0, adminLimit);
+    if (filtered.length > adminLimit) {
+      adminLoadMore.style.display = 'block';
+      adminLoadMore.textContent = `Továbbiak betöltése (${visibleAdmin.length} / ${filtered.length})`;
+    } else {
+      adminLoadMore.style.display = 'none';
+    }
+
+    const fragment = document.createDocumentFragment();
+
+    visibleAdmin.forEach(p => {
       const row = document.createElement('div');
       row.className = 'prow' + (p.trainingAccepted ? ' trained' : '');
       const isChecked = selectedIds.has(p.id) ? 'checked' : '';
@@ -616,12 +677,16 @@
         <button class="btn small ghost toggle-btn">${p.checkedIn ? 'Kiléptetés' : 'Beléptetés'}</button>
         <button class="btn small danger del-btn">X</button>`;
       
-      listEl.appendChild(row);
-      
-      const qrElement = document.getElementById(`qr-${p.id}`);
-      try { new QRCode(qrElement, { text: p.id, width: 50, height: 50 }); } catch(e){}
+      fragment.appendChild(row);
 
-      qrElement.onclick = () => openQrModal(p.name, p.id);
+      // Késleltetett QR generálás csak a megjelenő elemekre
+      setTimeout(() => {
+        const qrElement = document.getElementById(`qr-${p.id}`);
+        if (qrElement) {
+          try { new QRCode(qrElement, { text: p.id, width: 50, height: 50 }); } catch(e){}
+          qrElement.onclick = () => openQrModal(p.name, p.id);
+        }
+      }, 0);
 
       row.querySelector('.row-cb').onchange = (e) => {
         if (e.target.checked) selectedIds.add(p.id);
@@ -630,22 +695,37 @@
       };
 
       row.querySelector('.toggle-btn').onclick = () => {
+        const nowIso = new Date().toISOString();
         updateDoc(doc(db, "participants", p.id), {
           checkedIn: !p.checkedIn,
-          checkedInAt: !p.checkedIn ? new Date().toISOString() : null
+          checkedInAt: !p.checkedIn ? nowIso : p.checkedInAt,
+          checkedOutAt: p.checkedIn ? nowIso : p.checkedOutAt
         });
       };
+      
       row.querySelector('.del-btn').onclick = () => {
         deleteDoc(doc(db, "participants", p.id));
         selectedIds.delete(p.id);
       };
     });
 
+    listEl.appendChild(fragment);
+
     document.getElementById('stat-total').textContent = participants.length;
     document.getElementById('stat-in').textContent = participants.filter(p => p.checkedIn).length;
     document.getElementById('stat-trained').textContent = participants.filter(p => p.trainingAccepted).length;
+    
+    // 2. Fül (Kivetítő) megjelenítés lapozóval
+    const visibleDisplay = participants.slice(0, displayLimit);
+    if (participants.length > displayLimit) {
+      displayLoadMore.style.display = 'block';
+      displayLoadMore.textContent = `Továbbiak betöltése (${visibleDisplay.length} / ${participants.length})`;
+    } else {
+      displayLoadMore.style.display = 'none';
+    }
+
     const tbody = document.getElementById('display-tbody');
-    tbody.innerHTML = participants.map(p => `
+    tbody.innerHTML = visibleDisplay.map(p => `
       <tr class="${p.trainingAccepted ? 'trained' : ''}">
         <td><code>${p.id}</code></td>
         <td><b>${p.name}</b></td>
@@ -658,8 +738,16 @@
     renderExport();
   }
 
-  document.getElementById('search').addEventListener('input', render);
-  document.getElementById('export-search').addEventListener('input', renderExport);
+  // Keresőmezők eseményeinél alaphelyzetbe állítjuk a limitet 30-ra
+  document.getElementById('search').addEventListener('input', () => {
+    adminLimit = 30;
+    render();
+  });
+
+  document.getElementById('export-search').addEventListener('input', () => {
+    exportLimit = 30;
+    renderExport();
+  });
 </script>
 </body>
 </html>
