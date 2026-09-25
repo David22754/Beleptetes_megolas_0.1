@@ -125,15 +125,15 @@
   .name{ font-size:1.7rem; font-weight:700; line-height:1.15; margin:0 0 6px; word-break:break-word; }
   .code{ font-size:.95rem; color:var(--muted); margin:0; word-break:break-all; }
 
-  .ksh-row{ margin:0 0 20px; }
-  .ksh-row.hidden{ display:none !important; }
-  .ksh-label{ display:block; font-size:.78rem; color:var(--muted); margin-bottom:6px; }
-  .ksh-input{
+  .chamber-row{ margin:0 0 20px; }
+  .chamber-row.hidden{ display:none !important; }
+  .chamber-label{ display:block; font-size:.78rem; color:var(--muted); margin-bottom:6px; }
+  .chamber-input{
     width:100%; background:rgba(255,255,255,.05); border:1px solid var(--line); color:var(--text);
     font:inherit; font-size:1.15rem; padding:14px; border-radius:12px; letter-spacing:.5px;
   }
-  .ksh-input:focus{ outline:none; border-color:var(--info); background:rgba(124,160,193,.08); }
-  .ksh-input::placeholder{ color:var(--muted); }
+  .chamber-input:focus{ outline:none; border-color:var(--info); background:rgba(124,160,193,.08); }
+  .chamber-input::placeholder{ color:var(--muted); }
 
   .actions{ display:flex; gap:12px; }
   button{
@@ -195,9 +195,9 @@
     <p class="name" id="pName"></p>
     <p class="code" id="pCode"></p>
   </div>
-  <div class="ksh-row hidden" id="kshRow">
-    <label class="ksh-label" for="kshInput">KSH szám</label>
-    <input type="text" id="kshInput" class="ksh-input" placeholder="pl. 1234567890" inputmode="numeric" autocomplete="off">
+  <div class="chamber-row hidden" id="chamberRow">
+    <label class="chamber-label" for="chamberInput">Kamarai szám</label>
+    <input type="text" id="chamberInput" class="chamber-input" placeholder="pl. 1234567890" inputmode="numeric" autocomplete="off">
   </div>
   <div class="actions">
     <button class="btn-ghost" id="btnCancel">Mégse</button>
@@ -224,7 +224,7 @@
   const $ = id => document.getElementById(id);
   const finder = $('finder'), sheet = $('sheet'), backdrop = $('backdrop'), infoRow = $('infoRow');
   const btnAccept = $('btnAccept'), btnCancel = $('btnCancel');
-  const kshRow = $('kshRow'), kshInput = $('kshInput');
+  const chamberRow = $('chamberRow'), chamberInput = $('chamberInput');
 
   const ICONS = {
     ok:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>',
@@ -235,7 +235,7 @@
 
   let scanner = null;
   let busy = false;          // beolvasás feldolgozás alatt / lap nyitva
-  let stage = 'checkin';     // 'checkin' | 'training' | 'ksh'
+  let stage = 'checkin';     // 'checkin' | 'training' | 'chamber'
   let current = null;        // { code, ref, name }
 
   function setStatus(live, text){
@@ -250,7 +250,7 @@
     finder.classList.remove('locked', 'ok', 'warn', 'err', 'ask');
   }
 
-  function openSheet({ kind, badge, name, code, acceptable, acceptLabel, cancelLabel, showKsh }){
+  function openSheet({ kind, badge, name, code, acceptable, acceptLabel, cancelLabel, showChamber }){
     sheet.className = 'sheet ' + kind;
     $('badge').innerHTML = ICONS[kind] + '<span>' + badge + '</span>';
     $('pName').textContent = name;
@@ -258,8 +258,8 @@
     $('pCode').style.display = code ? '' : 'none';
     infoRow.classList.remove('accepted');
 
-    kshRow.classList.toggle('hidden', !showKsh);
-    if (showKsh) kshInput.value = '';
+    chamberRow.classList.toggle('hidden', !showChamber);
+    if (showChamber) chamberInput.value = '';
 
     btnAccept.classList.toggle('hidden', !acceptable);
     btnAccept.disabled = false;
@@ -269,7 +269,7 @@
     requestAnimationFrame(() => {
       sheet.classList.add('show');
       backdrop.classList.add('show');
-      if (showKsh) setTimeout(() => kshInput.focus(), 320);
+      if (showChamber) setTimeout(() => chamberInput.focus(), 320);
     });
   }
 
@@ -288,8 +288,8 @@
     unlockFinder();
     current = null;
     stage = 'checkin';
-    kshRow.classList.add('hidden');
-    kshInput.value = '';
+    chamberRow.classList.add('hidden');
+    chamberInput.value = '';
     $('hint').textContent = 'Tartsd a QR kódot a keretbe';
     setStatus(true, 'Beolvasásra kész');
     try { scanner.resume(); } catch(e) {}
@@ -418,7 +418,7 @@
 
       setTimeout(() => {
         btnCancel.classList.remove('hidden');
-        askKsh();
+        askChamberNumber();
       }, 900);
     } catch (e) {
       btnAccept.disabled = false;
@@ -432,29 +432,29 @@
     finishFlow();
   }
 
-  // Harmadik kérdés: KSH szám bekérése (csak ha a továbbképzést elfogadta)
-  function askKsh(){
-    stage = 'ksh';
+  // Harmadik kérdés: Kamarai szám bekérése (csak ha a továbbképzést elfogadta)
+  function askChamberNumber(){
+    stage = 'chamber';
     finder.classList.remove('locked', 'ok', 'warn', 'err');
     lockFinder('ask');
     openSheet({
       kind:'ask',
-      badge:'KSH szám',
-      name:'Add meg a KSH számot',
+      badge:'Kamarai szám',
+      name:'Add meg a kamarai számot',
       code: current.name,
       acceptable:true,
       acceptLabel:'Mentés',
       cancelLabel:'Kihagyás',
-      showKsh:true
+      showChamber:true
     });
     $('hint').textContent = '';
     setStatus(false, 'Megerősítésre vár');
   }
 
-  async function handleKshSave(){
-    const value = kshInput.value.trim();
+  async function handleChamberSave(){
+    const value = chamberInput.value.trim();
     if (!value){
-      kshInput.focus();
+      chamberInput.focus();
       return;
     }
     btnAccept.disabled = true;
@@ -462,8 +462,8 @@
 
     try {
       await updateDoc(current.ref, {
-        kshNumber: value,
-        kshNumberAt: new Date().toISOString()
+        chamberNumber: value,
+        chamberNumberAt: new Date().toISOString()
       });
       finishFlow();
     } catch (e) {
@@ -474,7 +474,7 @@
     }
   }
 
-  function handleKshSkip(){
+  function handleChamberSkip(){
     finishFlow();
   }
 
@@ -482,24 +482,24 @@
     if (!current) return;
     if (stage === 'checkin') handleCheckin();
     else if (stage === 'training') handleTrainingYes();
-    else if (stage === 'ksh') handleKshSave();
+    else if (stage === 'chamber') handleChamberSave();
   });
 
   btnCancel.addEventListener('click', () => {
     if (stage === 'training') handleTrainingNo();
-    else if (stage === 'ksh') handleKshSkip();
+    else if (stage === 'chamber') handleChamberSkip();
     else resumeScanning();
   });
 
   backdrop.addEventListener('click', () => {
     if (btnAccept.disabled) return;
     if (stage === 'training') handleTrainingNo();
-    else if (stage === 'ksh') handleKshSkip();
+    else if (stage === 'chamber') handleChamberSkip();
     else resumeScanning();
   });
 
-  kshInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter'){ e.preventDefault(); handleKshSave(); }
+  chamberInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter'){ e.preventDefault(); handleChamberSave(); }
   });
 
   async function startCamera(){
