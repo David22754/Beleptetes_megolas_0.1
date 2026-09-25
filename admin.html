@@ -165,7 +165,7 @@
         </div>
       </div>
       <table id="export-table">
-        <thead><tr><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>Kamarai szám</th><th>Belépés ideje</th></tr></thead>
+        <thead><tr><th style="width:34px;"><input type="checkbox" id="export-select-all" class="select-box"></th><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>Kamarai szám</th><th>Belépés ideje</th></tr></thead>
         <tbody id="export-tbody"></tbody>
       </table>
       <div class="empty-note" id="export-empty" style="display:none;">Egyelőre senki nem fogadta el a továbbképzést.</div>
@@ -515,8 +515,10 @@
 
     tbody.innerHTML = trained.map(p => {
       const checkinTime = formatDateTime(p.checkedInAt);
+      const isChecked = selectedIds.has(p.id) ? 'checked' : '';
       return `
       <tr>
+        <td><input type="checkbox" class="select-box export-cb" data-id="${p.id}" ${isChecked}></td>
         <td class="mono">${p.id}</td>
         <td>${p.name}</td>
         <td>Elfogadva</td>
@@ -525,6 +527,22 @@
       </tr>
     `;
     }).join('');
+
+    const exportSelectAll = document.getElementById('export-select-all');
+    exportSelectAll.checked = trained.length > 0 && trained.every(p => selectedIds.has(p.id));
+    exportSelectAll.onchange = (e) => {
+      if (e.target.checked) trained.forEach(p => selectedIds.add(p.id));
+      else trained.forEach(p => selectedIds.delete(p.id));
+      render();
+    };
+    tbody.querySelectorAll('.export-cb').forEach(cb => {
+      cb.onchange = (e) => {
+        const id = e.target.dataset.id;
+        if (e.target.checked) selectedIds.add(id);
+        else selectedIds.delete(id);
+        render();
+      };
+    });
   }
 
   copyBtn.addEventListener('click', async () => {
