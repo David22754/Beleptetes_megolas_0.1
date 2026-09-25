@@ -154,10 +154,15 @@
       <div style="margin-bottom:15px; font-size:1.1rem;">
         Összesen: <b id="stat-total">0</b> | Belépve: <b id="stat-in" style="color:var(--good);">0</b> | Továbbképzés elfogadva: <b id="stat-trained" style="color:var(--accent);">0</b>
       </div>
+
+      <!-- KERESŐMEZŐ A KIVETÍTŐHÖZ -->
+      <input type="text" id="display-search" placeholder="Keresés (kód, név, státusz, továbbképzés, idő alapján)..." style="margin-bottom:12px;">
+
       <table>
         <thead><tr><th>Kód</th><th>Név</th><th>Státusz</th><th>Továbbképzés</th><th>Idő</th></tr></thead>
         <tbody id="display-tbody"></tbody>
       </table>
+      <div class="empty-note" id="display-empty" style="display:none;">Nincs a szűrésnek megfelelő találat.</div>
       <div class="load-more-container">
         <button class="btn ghost" id="display-load-more" style="display:none; width:100%;">Továbbiak betöltése</button>
       </div>
@@ -235,7 +240,6 @@
   var participants = [];
   var selectedIds = new Set();
 
-  // Alapértelmezett korlát 20 elemre állítva mindhárom nézetnél
   let adminLimit = 20;
   let displayLimit = 20;
   let exportLimit = 20;
@@ -521,7 +525,7 @@
 
   // TOVÁBBIAK BETÖLTÉSE GOMBOK (+20 ELEMET TÖLT BE NÉZETENKÉNT)
   document.getElementById('admin-load-more').onclick = () => { adminLimit += 20; render(); };
-  document.getElementById('display-load-more').onclick = () => { displayLimit += 20; render(); };
+  document.getElementById('display-load-more').onclick = () => { displayLimit += 20; renderDisplay(); };
   document.getElementById('export-load-more').onclick = () => { exportLimit += 20; renderExport(); };
 
   const copyBtn = document.getElementById('copy-btn');
@@ -538,6 +542,46 @@
       await updateDoc(doc(db, "participants", id), { checkedIn: false, checkedOutAt: nowIso });
     }
   });
+
+  // 2. FÜL RENDERELÉSE (KIVETÍTŐ KERESŐVEL ÉS LAPOZÓVAL)
+  function renderDisplay() {
+    const searchVal = document.getElementById('display-search').value.toLowerCase().trim();
+    const displayLoadMore = document.getElementById('display-load-more');
+
+    const filtered = participants.filter(p => {
+      const statusText = p.checkedIn ? 'benn' : 'vár';
+      const trainText = p.trainingAccepted ? 'elfogadva' : '';
+      const checkinTime = formatDateTime(p.checkedInAt) || '';
+
+      return p.id.toLowerCase().includes(searchVal) ||
+             p.name.toLowerCase().includes(searchVal) ||
+             statusText.includes(searchVal) ||
+             trainText.includes(searchVal) ||
+             checkinTime.toLowerCase().includes(searchVal);
+    });
+
+    const visibleDisplay = filtered.slice(0, displayLimit);
+
+    if (filtered.length > displayLimit) {
+      displayLoadMore.style.display = 'block';
+      displayLoadMore.textContent = `Továbbiak betöltése (${visibleDisplay.length} / ${filtered.length})`;
+    } else {
+      displayLoadMore.style.display = 'none';
+    }
+
+    document.getElementById('display-empty').style.display = filtered.length ? 'none' : 'block';
+
+    const tbody = document.getElementById('display-tbody');
+    tbody.innerHTML = visibleDisplay.map(p => `
+      <tr class="${p.trainingAccepted ? 'trained' : ''}">
+        <td><code>${p.id}</code></td>
+        <td><b>${p.name}</b></td>
+        <td><span class="badge ${p.checkedIn ? 'in' : 'out'}">${p.checkedIn ? 'BENN' : 'VÁR'}</span></td>
+        <td>${p.trainingAccepted ? '<span class="badge train">ELFOGADVA</span>' : '—'}</td>
+        <td>${p.checkedInAt ? new Date(p.checkedInAt).toLocaleTimeString('hu-HU') : '—'}</td>
+      </tr>
+    `).join('');
+  }
 
   // 3. FÜL RENDERELÉSE (TÁBLÁZAT LAPOZÓVAL)
   function renderExport(){
@@ -638,19 +682,17 @@
     setTimeout(() => copyMsg.classList.remove('show'), 1600);
   });
 
-  // 1. ÉS 2. FÜL RENDERELÉSE (LAPOZÓKKAL)
+  // 1. FÜL RENDERELÉSE
   function render() {
     const q = document.getElementById('search').value.toLowerCase();
     const listEl = document.getElementById('plist');
     const adminLoadMore = document.getElementById('admin-load-more');
-    const displayLoadMore = document.getElementById('display-load-more');
 
     listEl.innerHTML = '';
 
     const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
     selectAllCb.checked = filtered.length > 0 && filtered.every(p => selectedIds.has(p.id));
 
-    // 1. Fül levágás (20 elemre)
     const visibleAdmin = filtered.slice(0, adminLimit);
     if (filtered.length > adminLimit) {
       adminLoadMore.style.display = 'block';
@@ -679,7 +721,6 @@
       
       fragment.appendChild(row);
 
-      // Késleltetett QR generálás csak a megjelenő elemekre
       setTimeout(() => {
         const qrElement = document.getElementById(`qr-${p.id}`);
         if (qrElement) {
@@ -715,33 +756,19 @@
     document.getElementById('stat-in').textContent = participants.filter(p => p.checkedIn).length;
     document.getElementById('stat-trained').textContent = participants.filter(p => p.trainingAccepted).length;
     
-    // 2. Fül (Kivetítő) megjelenítés lapozóval (20 elemre)
-    const visibleDisplay = participants.slice(0, displayLimit);
-    if (participants.length > displayLimit) {
-      displayLoadMore.style.display = 'block';
-      displayLoadMore.textContent = `Továbbiak betöltése (${visibleDisplay.length} / ${participants.length})`;
-    } else {
-      displayLoadMore.style.display = 'none';
-    }
-
-    const tbody = document.getElementById('display-tbody');
-    tbody.innerHTML = visibleDisplay.map(p => `
-      <tr class="${p.trainingAccepted ? 'trained' : ''}">
-        <td><code>${p.id}</code></td>
-        <td><b>${p.name}</b></td>
-        <td><span class="badge ${p.checkedIn ? 'in' : 'out'}">${p.checkedIn ? 'BENN' : 'VÁR'}</span></td>
-        <td>${p.trainingAccepted ? '<span class="badge train">ELFOGADVA</span>' : '—'}</td>
-        <td>${p.checkedInAt ? new Date(p.checkedInAt).toLocaleTimeString() : '—'}</td>
-      </tr>
-    `).join('');
-
+    renderDisplay();
     renderExport();
   }
 
-  // Keresőmezők eseményeinél alaphelyzetbe állítjuk a limitet 20-ra
+  // Keresőmezők eseményeinél alaphelyzetbe állítjuk a limiteket 20-ra
   document.getElementById('search').addEventListener('input', () => {
     adminLimit = 20;
     render();
+  });
+
+  document.getElementById('display-search').addEventListener('input', () => {
+    displayLimit = 20;
+    renderDisplay();
   });
 
   document.getElementById('export-search').addEventListener('input', () => {
