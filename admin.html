@@ -235,10 +235,10 @@
   var participants = [];
   var selectedIds = new Set();
 
-  // Külön korlátok mindhárom nézethez a maximális sebességért
-  let adminLimit = 30;
-  let displayLimit = 30;
-  let exportLimit = 30;
+  // Alapértelmezett korlát 20 elemre állítva mindhárom nézetnél
+  let adminLimit = 20;
+  let displayLimit = 20;
+  let exportLimit = 20;
 
   var tabs = document.querySelectorAll('nav.tabs button');
   tabs.forEach(btn => {
@@ -519,10 +519,10 @@
     }
   };
 
-  // TOVÁBBIAK BETÖLTÉSE GOMBOK KELTÉSE (MIND3 FÜLÖN)
-  document.getElementById('admin-load-more').onclick = () => { adminLimit += 30; render(); };
-  document.getElementById('display-load-more').onclick = () => { displayLimit += 30; render(); };
-  document.getElementById('export-load-more').onclick = () => { exportLimit += 30; renderExport(); };
+  // TOVÁBBIAK BETÖLTÉSE GOMBOK (+20 ELEMET TÖLT BE NÉZETENKÉNT)
+  document.getElementById('admin-load-more').onclick = () => { adminLimit += 20; render(); };
+  document.getElementById('display-load-more').onclick = () => { displayLimit += 20; render(); };
+  document.getElementById('export-load-more').onclick = () => { exportLimit += 20; renderExport(); };
 
   const copyBtn = document.getElementById('copy-btn');
   const copyMsg = document.getElementById('copy-msg');
@@ -650,7 +650,7 @@
     const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
     selectAllCb.checked = filtered.length > 0 && filtered.every(p => selectedIds.has(p.id));
 
-    // 1. Fül levágás
+    // 1. Fül levágás (20 elemre)
     const visibleAdmin = filtered.slice(0, adminLimit);
     if (filtered.length > adminLimit) {
       adminLoadMore.style.display = 'block';
@@ -715,7 +715,7 @@
     document.getElementById('stat-in').textContent = participants.filter(p => p.checkedIn).length;
     document.getElementById('stat-trained').textContent = participants.filter(p => p.trainingAccepted).length;
     
-    // 2. Fül (Kivetítő) megjelenítés lapozóval
+    // 2. Fül (Kivetítő) megjelenítés lapozóval (20 elemre)
     const visibleDisplay = participants.slice(0, displayLimit);
     if (participants.length > displayLimit) {
       displayLoadMore.style.display = 'block';
@@ -738,14 +738,14 @@
     renderExport();
   }
 
-  // Keresőmezők eseményeinél alaphelyzetbe állítjuk a limitet 30-ra
+  // Keresőmezők eseményeinél alaphelyzetbe állítjuk a limitet 20-ra
   document.getElementById('search').addEventListener('input', () => {
-    adminLimit = 30;
+    adminLimit = 20;
     render();
   });
 
   document.getElementById('export-search').addEventListener('input', () => {
-    exportLimit = 30;
+    exportLimit = 20;
     renderExport();
   });
 </script>
