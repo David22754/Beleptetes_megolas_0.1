@@ -70,7 +70,7 @@
   th,td{ padding:10px; text-align:left; border-bottom:1px solid var(--border); }
   tr.trained td{ background:rgba(111,162,135,.08); }
 
-  .export-bar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
+  .export-bar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
   .export-bar .count{ color:var(--text-dim); font-size:.8rem; }
   .copy-msg{ font-size:.78rem; color:var(--good); margin-left:10px; opacity:0; transition:opacity .2s; }
   .copy-msg.show{ opacity:1; }
@@ -164,11 +164,15 @@
           <span class="copy-msg" id="copy-msg">Másolva!</span>
         </div>
       </div>
+      
+      <!-- UJ KERESŐMEZŐ A TÁBLÁZATHOZ -->
+      <input type="text" id="export-search" placeholder="Keresés (kód, név, kamarai szám, belépés alapján)..." style="margin-bottom:12px;">
+
       <table id="export-table">
         <thead><tr><th style="width:34px;"><input type="checkbox" id="export-select-all" class="select-box"></th><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>Kamarai szám</th><th>Belépés ideje</th></tr></thead>
         <tbody id="export-tbody"></tbody>
       </table>
-      <div class="empty-note" id="export-empty" style="display:none;">Egyelőre senki nem fogadta el a továbbképzést.</div>
+      <div class="empty-note" id="export-empty" style="display:none;">Nincs a szűrésnek megfelelő találat.</div>
     </div>
   </section>
 </div>
@@ -257,7 +261,6 @@
     document.body.appendChild(tempDiv);
     new QRCode(tempDiv, { text: code, width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M });
 
-    // a qrcodejs kis késleltetéssel rajzol le bizonyos böngészőkben
     await new Promise(res => setTimeout(res, 60));
     const qrCanvas = tempDiv.querySelector('canvas');
     const qrImg = tempDiv.querySelector('img');
@@ -465,7 +468,6 @@
       } catch (e) {
         console.error('QR letöltés sikertelen:', p.id, e);
       }
-      // rövid szünet két letöltés között, hogy a böngésző ne blokkolja a sorozatot
       await new Promise(res => setTimeout(res, 350));
     }
     bulkProgress.textContent = `Kész: ${chosen.length} QR kód letöltve.`;
@@ -502,12 +504,26 @@
     }
   };
 
-  // Táblázat fül: csak az elfogadott továbbképzésűek, Kamarai számmal és belépési idővel, másolható formátumban
+  // Táblázat fül: keresés és megjelenítés
   const copyBtn = document.getElementById('copy-btn');
   const copyMsg = document.getElementById('copy-msg');
 
   function renderExport(){
-    const trained = participants.filter(p => p.trainingAccepted);
+    const searchVal = document.getElementById('export-search').value.toLowerCase().trim();
+    
+    // Szűrés továbbképzést elfogadottakra ÉS a kereső kifejezésre
+    const trained = participants.filter(p => {
+      if (!p.trainingAccepted) return false;
+      
+      const checkinTime = formatDateTime(p.checkedInAt) || '';
+      const chamberNum = p.chamberNumber || '';
+      
+      return p.id.toLowerCase().includes(searchVal) ||
+             p.name.toLowerCase().includes(searchVal) ||
+             chamberNum.toLowerCase().includes(searchVal) ||
+             checkinTime.toLowerCase().includes(searchVal);
+    });
+
     const tbody = document.getElementById('export-tbody');
     document.getElementById('export-count').textContent = trained.length;
     document.getElementById('export-empty').style.display = trained.length ? 'none' : 'block';
@@ -546,7 +562,17 @@
   }
 
   copyBtn.addEventListener('click', async () => {
-    const trained = participants.filter(p => p.trainingAccepted);
+    const searchVal = document.getElementById('export-search').value.toLowerCase().trim();
+    const trained = participants.filter(p => {
+      if (!p.trainingAccepted) return false;
+      const checkinTime = formatDateTime(p.checkedInAt) || '';
+      const chamberNum = p.chamberNumber || '';
+      return p.id.toLowerCase().includes(searchVal) ||
+             p.name.toLowerCase().includes(searchVal) ||
+             chamberNum.toLowerCase().includes(searchVal) ||
+             checkinTime.toLowerCase().includes(searchVal);
+    });
+
     const header = ['Kód', 'Név', 'Továbbképzés', 'Kamarai szám', 'Belépés ideje'];
     const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.chamberNumber || '', formatDateTime(p.checkedInAt) || '']);
     const tsv = [header, ...rows].map(r => r.join('\t')).join('\n');
@@ -554,7 +580,6 @@
     try {
       await navigator.clipboard.writeText(tsv);
     } catch (e) {
-      // Vágólap API nem elérhető (pl. nem HTTPS) - kijelöljük a táblázatot helyette
       const range = document.createRange();
       range.selectNode(document.getElementById('export-table'));
       window.getSelection().removeAllRanges();
@@ -634,6 +659,7 @@
   }
 
   document.getElementById('search').addEventListener('input', render);
+  document.getElementById('export-search').addEventListener('input', renderExport);
 </script>
 </body>
 </html>
