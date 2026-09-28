@@ -18,7 +18,7 @@
   .view{ display:none; } .view.active{ display:block; }
   .panel{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px; margin-bottom:16px; }
   label{ display:block; font-size:.72rem; color:var(--text-dim); margin-bottom:6px; }
-  input[type=text], input[type=password]{ width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text); padding:10px; border-radius:8px; font-family:inherit; }
+  input[type=text]{ width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text); padding:10px; border-radius:8px; font-family:inherit; }
   .row{ display:flex; gap:10px; margin-top:8px; align-items:center; }
   .btn{ background:var(--accent); color:var(--accent-ink); border:none; border-radius:8px; padding:10px 16px; font-weight:600; cursor:pointer; }
   .btn.ghost{ background:transparent; color:var(--text); border:1px solid var(--border); }
@@ -26,6 +26,7 @@
   .btn.danger{ border-color:var(--bad); color:var(--bad); background:transparent; }
   .btn:disabled{ opacity:.5; cursor:default; }
   
+
   .drop-zone {
     border: 2px dashed var(--border);
     border-radius: 10px;
@@ -65,21 +66,23 @@
   .bulk-bar label{ margin:0; cursor:pointer; display:flex; align-items:center; gap:6px; color:var(--text); font-size:.85rem; }
   .bulk-progress{ font-size:.75rem; color:var(--text-dim); margin-bottom:12px; min-height:1em; }
 
+  .more-row{ display:flex; gap:10px; margin-top:12px; }
+  .more-btn{ flex:1; background:transparent; color:var(--text); border:1px solid var(--border); border-radius:10px; padding:12px; font-family:inherit; font-size:.8rem; font-weight:600; cursor:pointer; }
+  .more-btn:hover{ background:var(--panel-alt); }
+  .more-btn.hidden{ display:none; }
+
   table{ width:100%; border-collapse:collapse; margin-top:10px; }
   th,td{ padding:10px; text-align:left; border-bottom:1px solid var(--border); }
   tr.trained td{ background:rgba(111,162,135,.08); }
 
-  .export-bar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+  .export-bar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
   .export-bar .count{ color:var(--text-dim); font-size:.8rem; }
-  .export-actions{ display:flex; align-items:center; gap:8px; }
-  .copy-msg{ font-size:.78rem; color:var(--good); opacity:0; transition:opacity .2s; }
+  .copy-msg{ font-size:.78rem; color:var(--good); margin-left:10px; opacity:0; transition:opacity .2s; }
   .copy-msg.show{ opacity:1; }
   #export-table th{ color:var(--text-dim); font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; }
   #export-table td.mono{ font-family:'IBM Plex Mono', monospace; }
   #export-table td.missing{ color:var(--text-dim); }
   .empty-note{ color:var(--text-dim); font-size:.82rem; padding:14px 4px; }
-
-  .load-more-container{ text-align:center; margin-top:15px; }
 
   .modal-backdrop{ position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:999; backdrop-filter:blur(4px); }
   .modal-backdrop.active{ display:flex; }
@@ -98,133 +101,91 @@
 <div id="app">
   <header>
     <h1>Beléptető Központ</h1>
-    <div style="display:flex; align-items:center; gap:15px;">
-      <button class="btn small ghost" id="logout-btn" style="display:none;">Kijelentkezés</button>
-      <div style="color:var(--text-dim); font-size:.8rem;" id="status-label">Firebase Csatlakozás...</div>
-    </div>
+    <div style="color:var(--text-dim); font-size:.8rem;" id="status-label">Firebase Csatlakozás...</div>
   </header>
 
-  <!-- BEJELENTKEZŐ PANELSZAKASZ (Ha nincs bejelentkezve) -->
-  <section class="view active" id="view-login">
-    <div class="panel" style="max-width:380px; margin:40px auto; padding:24px;">
-      <h2 class="display-title" style="margin-top:0; text-align:center;">Admin Bejelentkezés</h2>
-      <div style="margin-bottom:12px;">
-        <label>Felhasználónév</label>
-        <input type="text" id="login-user" placeholder="Felhasználónév">
+  <nav class="tabs">
+    <button data-view="admin" class="active">Résztvevők</button>
+    <button data-view="display">Kivetítő</button>
+    <button data-view="export">Táblázat</button>
+  </nav>
+
+  <section class="view active" id="view-admin">
+    <div class="panel">
+      <label>Egyéni résztvevő hozzáadása</label>
+      <div class="row">
+        <input type="text" id="new-name" placeholder="Név">
+        <button class="btn" id="add-btn">Hozzáadás</button>
       </div>
-      <div style="margin-bottom:16px;">
-        <label>Jelszó</label>
-        <input type="password" id="login-pass" placeholder="Jelszó">
+    </div>
+
+    <!-- Drag and Drop CSV Feltöltő Zóna -->
+    <div class="panel">
+      <label>CSV Tömeges Feltöltés</label>
+      <div class="drop-zone" id="drop-zone">
+        <div class="drop-zone-text" id="drop-zone-text">
+          Húzd ide a CSV fájlt, vagy <b>Kattints a tallózáshoz</b>
+        </div>
+        <input type="file" id="csv-file" accept=".csv,text/csv" style="display:none;">
       </div>
-      <button class="btn" id="login-btn" style="width:100%;">Belépés</button>
-      <div id="login-err" style="color:var(--bad); font-size:.8rem; margin-top:10px; text-align:center; display:none;">Hibás felhasználónév vagy jelszó!</div>
+      <div id="import-result" style="margin-top:8px; font-size:.78rem; color:var(--text-dim);"></div>
+    </div>
+
+    <input type="text" id="search" placeholder="Keresés..." style="margin-bottom:10px;">
+
+    <div class="bulk-bar">
+      <label><input type="checkbox" id="select-all" class="select-box"> Mind</label>
+      <div style="flex:1;"></div>
+      <button class="btn small ghost" id="bulk-download-btn">QR letöltése</button>
+      <button class="btn small ghost" id="bulk-in-btn">Beléptetés</button>
+      <button class="btn small ghost" id="bulk-out-btn">Kiléptetés</button>
+      <button class="btn small danger" id="bulk-del-btn">Törlés</button>
+    </div>
+    <div class="bulk-progress" id="bulk-progress"></div>
+
+    <div id="plist"></div>
+    <div class="more-row" id="more-row">
+      <button class="more-btn" id="less-btn">Kevesebb mutatása</button>
+      <button class="more-btn" id="more-btn">Továbbiak betöltése</button>
     </div>
   </section>
 
-  <!-- ADMIN TARTALOM (Csak bejelentkezés után látható) -->
-  <div id="admin-content" style="display:none;">
-    <nav class="tabs">
-      <button data-view="admin" class="active">Résztvevők</button>
-      <button data-view="display">Kivetítő</button>
-      <button data-view="export">Táblázat</button>
-    </nav>
+  <section class="view" id="view-display">
+    <div class="panel">
+      <h2 class="display-title">Beléptetés Állapota</h2>
+      <div style="margin-bottom:15px; font-size:1.1rem;">
+        Összesen: <b id="stat-total">0</b> | Belépve: <b id="stat-in" style="color:var(--good);">0</b> | Továbbképzés elfogadva: <b id="stat-trained" style="color:var(--accent);">0</b>
+      </div>
+      <table>
+        <thead><tr><th>Kód</th><th>Név</th><th>Státusz</th><th>Továbbképzés</th><th>Idő</th></tr></thead>
+        <tbody id="display-tbody"></tbody>
+      </table>
+    </div>
+  </section>
 
-    <!-- 1. FÜL: RÉSZTVEVŐK -->
-    <section class="view active" id="view-admin">
-      <div class="panel">
-        <label>Egyéni résztvevő hozzáadása</label>
-        <div class="row">
-          <input type="text" id="new-name" placeholder="Név">
-          <button class="btn" id="add-btn">Hozzáadás</button>
+  <section class="view" id="view-export">
+    <div class="panel">
+      <h2 class="display-title">Elfogadott továbbképzések</h2>
+      <p style="color:var(--text-dim); font-size:.82rem; margin-top:-6px;">
+        Csak azok a résztvevők szerepelnek, akiknél a Kivetítő fülön a Továbbképzés ELFOGADVA státuszú.
+        A Kamarai szám oszlop azt mutatja, amit a résztvevő a beolvasónál a továbbképzés elfogadása után megadott.
+        A táblázat gombbal Excelbe / Google Táblázatba beilleszthető formában másolható.
+      </p>
+      <input type="text" id="export-search" placeholder="Keresés kód, név, kamarai szám vagy belépés ideje szerint..." style="margin:12px 0;">
+      <div class="export-bar">
+        <div class="count"><b id="export-count">0</b> résztvevő</div>
+        <div>
+          <button class="btn small" id="copy-btn">Táblázat másolása</button>
+          <span class="copy-msg" id="copy-msg">Másolva!</span>
         </div>
       </div>
-
-      <div class="panel">
-        <label>CSV Tömeges Feltöltés</label>
-        <div class="drop-zone" id="drop-zone">
-          <div class="drop-zone-text" id="drop-zone-text">
-            Húzd ide a CSV fájlt, vagy <b>Kattints a tallózáshoz</b>
-          </div>
-          <input type="file" id="csv-file" accept=".csv,text/csv" style="display:none;">
-        </div>
-        <div id="import-result" style="margin-top:8px; font-size:.78rem; color:var(--text-dim);"></div>
-      </div>
-
-      <input type="text" id="search" placeholder="Keresés..." style="margin-bottom:10px;">
-
-      <div class="bulk-bar">
-        <label><input type="checkbox" id="select-all" class="select-box"> Mind</label>
-        <div style="flex:1;"></div>
-        <button class="btn small ghost" id="bulk-download-btn">QR letöltése</button>
-        <button class="btn small ghost" id="bulk-in-btn">Beléptetés</button>
-        <button class="btn small ghost" id="bulk-out-btn">Kiléptetés</button>
-        <button class="btn small danger" id="bulk-del-btn">Törlés</button>
-      </div>
-      <div class="bulk-progress" id="bulk-progress"></div>
-
-      <div id="plist"></div>
-      <div class="load-more-container">
-        <button class="btn ghost" id="admin-load-more" style="display:none; width:100%;">Továbbiak betöltése</button>
-      </div>
-    </section>
-
-    <!-- 2. FÜL: KIVETÍTŐ -->
-    <section class="view" id="view-display">
-      <div class="panel">
-        <h2 class="display-title">Beléptetés Állapota</h2>
-        <div style="margin-bottom:15px; font-size:1.1rem;">
-          Összesen: <b id="stat-total">0</b> | Belépve: <b id="stat-in" style="color:var(--good);">0</b> | Továbbképzés elfogadva: <b id="stat-trained" style="color:var(--accent);">0</b>
-        </div>
-
-        <input type="text" id="display-search" placeholder="Keresés (kód, név, státusz, továbbképzés, idő alapján)..." style="margin-bottom:12px;">
-
-        <table>
-          <thead><tr><th>Kód</th><th>Név</th><th>Státusz</th><th>Továbbképzés</th><th>Idő</th></tr></thead>
-          <tbody id="display-tbody"></tbody>
-        </table>
-        <div class="empty-note" id="display-empty" style="display:none;">Nincs a szűrésnek megfelelő találat.</div>
-        <div class="load-more-container">
-          <button class="btn ghost" id="display-load-more" style="display:none; width:100%;">Továbbiak betöltése</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- 3. FÜL: TÁBLÁZAT -->
-    <section class="view" id="view-export">
-      <div class="panel">
-        <h2 class="display-title">Elfogadott továbbképzések</h2>
-        <div class="export-bar">
-          <div class="count"><b id="export-count">0</b> résztvevő</div>
-          <div class="export-actions">
-            <button class="btn small ghost" id="export-checkout-btn">Kiléptetés</button>
-            <button class="btn small" id="copy-btn">Táblázat másolása</button>
-            <span class="copy-msg" id="copy-msg">Másolva!</span>
-          </div>
-        </div>
-        
-        <input type="text" id="export-search" placeholder="Keresés (kód, név, kamarai szám, belépés/kilépés alapján)..." style="margin-bottom:12px;">
-
-        <table id="export-table">
-          <thead>
-            <tr>
-              <th style="width:34px;"><input type="checkbox" id="export-select-all" class="select-box"></th>
-              <th>Kód</th>
-              <th>Név</th>
-              <th>Továbbképzés</th>
-              <th>Kamarai szám</th>
-              <th>Belépés ideje</th>
-              <th>Kilépés ideje</th>
-            </tr>
-          </thead>
-          <tbody id="export-tbody"></tbody>
-        </table>
-        <div class="empty-note" id="export-empty" style="display:none;">Nincs a szűrésnek megfelelő találat.</div>
-        <div class="load-more-container">
-          <button class="btn ghost" id="export-load-more" style="display:none; width:100%;">Továbbiak betöltése</button>
-        </div>
-      </div>
-    </section>
-  </div>
+      <table id="export-table">
+        <thead><tr><th style="width:34px;"><input type="checkbox" id="export-select-all" class="select-box"></th><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>Kamarai szám</th><th>Belépés ideje</th></tr></thead>
+        <tbody id="export-tbody"></tbody>
+      </table>
+      <div class="empty-note" id="export-empty" style="display:none;">Egyelőre senki nem fogadta el a továbbképzést.</div>
+    </div>
+  </section>
 </div>
 
 <div class="modal-backdrop" id="qr-modal">
@@ -245,10 +206,6 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-  // --- BEÁLLÍTANDÓ FELHASZNÁLÓNÉV ÉS JELSZÓ ---
-  const ADMIN_USER = "admin";
-  const ADMIN_PASS = "1234";
-
   const firebaseConfig = {
     apiKey: "AIzaSyAzXfTNTXJyf0DkdWejm6UQOv90dn67NnA",
     authDomain: "belepteto-app.firebaseapp.com",
@@ -262,56 +219,15 @@
   const db = getFirestore(app);
   document.getElementById('status-label').textContent = "● Firebase Online";
 
-  // --- BELÉPÉS KEZELÉSE ---
-  const viewLogin = document.getElementById('view-login');
-  const adminContent = document.getElementById('admin-content');
-  const logoutBtn = document.getElementById('logout-btn');
-  const loginErr = document.getElementById('login-err');
-
-  function checkAuth() {
-    if (sessionStorage.getItem('admin_logged') === 'true') {
-      viewLogin.style.display = 'none';
-      adminContent.style.display = 'block';
-      logoutBtn.style.display = 'block';
-    } else {
-      viewLogin.style.display = 'block';
-      adminContent.style.display = 'none';
-      logoutBtn.style.display = 'none';
-    }
-  }
-
-  document.getElementById('login-btn').onclick = () => {
-    const u = document.getElementById('login-user').value.trim();
-    const p = document.getElementById('login-pass').value.trim();
-    if (u === ADMIN_USER && p === ADMIN_PASS) {
-      sessionStorage.setItem('admin_logged', 'true');
-      loginErr.style.display = 'none';
-      checkAuth();
-    } else {
-      loginErr.style.display = 'block';
-    }
-  };
-
-  logoutBtn.onclick = () => {
-    sessionStorage.removeItem('admin_logged');
-    checkAuth();
-  };
-
-  checkAuth(); // Oldal betöltésekor ellenőrzés
-
   var participants = [];
   var selectedIds = new Set();
-
-  let adminLimit = 20;
-  let displayLimit = 20;
-  let exportLimit = 20;
 
   var tabs = document.querySelectorAll('nav.tabs button');
   tabs.forEach(btn => {
     btn.addEventListener('click', () => {
       tabs.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      document.querySelectorAll('#admin-content .view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById('view-' + btn.dataset.view).classList.add('active');
     });
   });
@@ -328,6 +244,8 @@
     if (isNaN(d.getTime())) return null;
     return d.toLocaleTimeString('hu-HU');
   }
+
+  // ---- QR kártya kép generálása (a mintakép stílusában) és letöltése ----
 
   function roundRect(ctx, x, y, w, h, r){
     ctx.beginPath();
@@ -354,6 +272,7 @@
     document.body.appendChild(tempDiv);
     new QRCode(tempDiv, { text: code, width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M });
 
+    // a qrcodejs kis késleltetéssel rajzol le bizonyos böngészőkben
     await new Promise(res => setTimeout(res, 60));
     const qrCanvas = tempDiv.querySelector('canvas');
     const qrImg = tempDiv.querySelector('img');
@@ -408,7 +327,8 @@
     return dataUrl;
   }
 
-  // ---- Egyéni hozzáadás ----
+  // ---- Résztvevő hozzáadása ----
+
   document.getElementById('add-btn').addEventListener('click', async () => {
     const input = document.getElementById('new-name');
     const name = input.value.trim();
@@ -418,7 +338,6 @@
       name: name,
       checkedIn: false,
       checkedInAt: null,
-      checkedOutAt: null,
       trainingAccepted: false,
       trainingAcceptedAt: null,
       chamberNumber: null,
@@ -433,16 +352,29 @@
   const importResult = document.getElementById('import-result');
 
   dropZone.addEventListener('click', () => csvFile.click());
-  dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-  ['dragleave', 'dragend'].forEach(type => dropZone.addEventListener(type, () => dropZone.classList.remove('dragover')));
+
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+
+  ['dragleave', 'dragend'].forEach(type => {
+    dropZone.addEventListener(type, () => dropZone.classList.remove('dragover'));
+  });
 
   dropZone.addEventListener('drop', (e) => {
     e.preventDefault();
     dropZone.classList.remove('dragover');
-    if (e.dataTransfer.files.length) processCsvFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files.length) {
+      processCsvFile(e.dataTransfer.files[0]);
+    }
   });
 
-  csvFile.addEventListener('change', () => { if (csvFile.files.length) processCsvFile(csvFile.files[0]); });
+  csvFile.addEventListener('change', () => {
+    if (csvFile.files.length) {
+      processCsvFile(csvFile.files[0]);
+    }
+  });
 
   function processCsvFile(file) {
     const reader = new FileReader();
@@ -478,7 +410,6 @@
               name: extractedName,
               checkedIn: false,
               checkedInAt: null,
-              checkedOutAt: null,
               trainingAccepted: false,
               trainingAcceptedAt: null,
               chamberNumber: null,
@@ -517,7 +448,7 @@
 
   document.getElementById('bulk-out-btn').onclick = async () => {
     for (let id of selectedIds) {
-      await updateDoc(doc(db, "participants", id), { checkedIn: false, checkedOutAt: new Date().toISOString() });
+      await updateDoc(doc(db, "participants", id), { checkedIn: false, checkedInAt: null });
     }
   };
 
@@ -549,6 +480,7 @@
       } catch (e) {
         console.error('QR letöltés sikertelen:', p.id, e);
       }
+      // rövid szünet két letöltés között, hogy a böngésző ne blokkolja a sorozatot
       await new Promise(res => setTimeout(res, 350));
     }
     bulkProgress.textContent = `Kész: ${chosen.length} QR kód letöltve.`;
@@ -585,98 +517,29 @@
     }
   };
 
-  document.getElementById('admin-load-more').onclick = () => { adminLimit += 20; render(); };
-  document.getElementById('display-load-more').onclick = () => { displayLimit += 20; renderDisplay(); };
-  document.getElementById('export-load-more').onclick = () => { exportLimit += 20; renderExport(); };
-
+  // Táblázat fül: csak az elfogadott továbbképzésűek, Kamarai számmal és belépési idővel, másolható formátumban
   const copyBtn = document.getElementById('copy-btn');
   const copyMsg = document.getElementById('copy-msg');
-  const exportCheckoutBtn = document.getElementById('export-checkout-btn');
-
-  exportCheckoutBtn.addEventListener('click', async () => {
-    if (selectedIds.size === 0) {
-      alert('Nincs kijelölve egyetlen résztvevő sem!');
-      return;
-    }
-    const nowIso = new Date().toISOString();
-    for (let id of selectedIds) {
-      await updateDoc(doc(db, "participants", id), { checkedIn: false, checkedOutAt: nowIso });
-    }
-  });
-
-  function renderDisplay() {
-    const searchVal = document.getElementById('display-search').value.toLowerCase().trim();
-    const displayLoadMore = document.getElementById('display-load-more');
-
-    const filtered = participants.filter(p => {
-      const statusText = p.checkedIn ? 'benn' : 'vár';
-      const trainText = p.trainingAccepted ? 'elfogadva' : '';
-      const checkinTime = formatDateTime(p.checkedInAt) || '';
-
-      return p.id.toLowerCase().includes(searchVal) ||
-             p.name.toLowerCase().includes(searchVal) ||
-             statusText.includes(searchVal) ||
-             trainText.includes(searchVal) ||
-             checkinTime.toLowerCase().includes(searchVal);
-    });
-
-    const visibleDisplay = filtered.slice(0, displayLimit);
-
-    if (filtered.length > displayLimit) {
-      displayLoadMore.style.display = 'block';
-      displayLoadMore.textContent = `Továbbiak betöltése (${visibleDisplay.length} / ${filtered.length})`;
-    } else {
-      displayLoadMore.style.display = 'none';
-    }
-
-    document.getElementById('display-empty').style.display = filtered.length ? 'none' : 'block';
-
-    const tbody = document.getElementById('display-tbody');
-    tbody.innerHTML = visibleDisplay.map(p => `
-      <tr class="${p.trainingAccepted ? 'trained' : ''}">
-        <td><code>${p.id}</code></td>
-        <td><b>${p.name}</b></td>
-        <td><span class="badge ${p.checkedIn ? 'in' : 'out'}">${p.checkedIn ? 'BENN' : 'VÁR'}</span></td>
-        <td>${p.trainingAccepted ? '<span class="badge train">ELFOGADVA</span>' : '—'}</td>
-        <td>${p.checkedInAt ? new Date(p.checkedInAt).toLocaleTimeString('hu-HU') : '—'}</td>
-      </tr>
-    `).join('');
-  }
 
   function renderExport(){
-    const searchVal = document.getElementById('export-search').value.toLowerCase().trim();
-    const exportLoadMore = document.getElementById('export-load-more');
-
-    const trained = participants.filter(p => {
-      if (!p.trainingAccepted) return false;
-      const checkinTime = formatDateTime(p.checkedInAt) || '';
-      const checkoutTime = formatDateTime(p.checkedOutAt) || '';
-      const chamberNum = p.chamberNumber || '';
-      
-      return p.id.toLowerCase().includes(searchVal) ||
-             p.name.toLowerCase().includes(searchVal) ||
-             chamberNum.toLowerCase().includes(searchVal) ||
-             checkinTime.toLowerCase().includes(searchVal) ||
-             checkoutTime.toLowerCase().includes(searchVal);
+    const query = document.getElementById('export-search').value.trim().toLowerCase();
+    const trained = participants.filter(p => p.trainingAccepted).filter(p => {
+      if (!query) return true;
+      const time = (formatDateTime(p.checkedInAt) || '').toLowerCase();
+      return p.id.toLowerCase().includes(query)
+        || p.name.toLowerCase().includes(query)
+        || (p.chamberNumber || '').toLowerCase().includes(query)
+        || time.includes(query);
     });
-
-    const visibleTrained = trained.slice(0, exportLimit);
-
-    if (trained.length > exportLimit) {
-      exportLoadMore.style.display = 'block';
-      exportLoadMore.textContent = `Továbbiak betöltése (${visibleTrained.length} / ${trained.length})`;
-    } else {
-      exportLoadMore.style.display = 'none';
-    }
-
     const tbody = document.getElementById('export-tbody');
     document.getElementById('export-count').textContent = trained.length;
-    document.getElementById('export-empty').style.display = trained.length ? 'none' : 'block';
+    const emptyEl = document.getElementById('export-empty');
+    emptyEl.textContent = query ? 'Nincs a keresésnek megfelelő találat.' : 'Egyelőre senki nem fogadta el a továbbképzést.';
+    emptyEl.style.display = trained.length ? 'none' : 'block';
     document.getElementById('export-table').style.display = trained.length ? '' : 'none';
 
-    tbody.innerHTML = visibleTrained.map(p => {
+    tbody.innerHTML = trained.map(p => {
       const checkinTime = formatDateTime(p.checkedInAt);
-      const checkoutTime = formatDateTime(p.checkedOutAt);
       const isChecked = selectedIds.has(p.id) ? 'checked' : '';
       return `
       <tr>
@@ -686,7 +549,6 @@
         <td>Elfogadva</td>
         <td class="mono ${p.chamberNumber ? '' : 'missing'}">${p.chamberNumber ? p.chamberNumber : '—'}</td>
         <td class="${checkinTime ? '' : 'missing'}">${checkinTime ? checkinTime : '—'}</td>
-        <td class="${checkoutTime ? '' : 'missing'}">${checkoutTime ? checkoutTime : '—'}</td>
       </tr>
     `;
     }).join('');
@@ -709,26 +571,15 @@
   }
 
   copyBtn.addEventListener('click', async () => {
-    const searchVal = document.getElementById('export-search').value.toLowerCase().trim();
-    const trained = participants.filter(p => {
-      if (!p.trainingAccepted) return false;
-      const checkinTime = formatDateTime(p.checkedInAt) || '';
-      const checkoutTime = formatDateTime(p.checkedOutAt) || '';
-      const chamberNum = p.chamberNumber || '';
-      return p.id.toLowerCase().includes(searchVal) ||
-             p.name.toLowerCase().includes(searchVal) ||
-             chamberNum.toLowerCase().includes(searchVal) ||
-             checkinTime.toLowerCase().includes(searchVal) ||
-             checkoutTime.toLowerCase().includes(searchVal);
-    });
-
-    const header = ['Kód', 'Név', 'Továbbképzés', 'Kamarai szám', 'Belépés ideje', 'Kilépés ideje'];
-    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.chamberNumber || '', formatDateTime(p.checkedInAt) || '', formatDateTime(p.checkedOutAt) || '']);
+    const trained = participants.filter(p => p.trainingAccepted);
+    const header = ['Kód', 'Név', 'Továbbképzés', 'Kamarai szám', 'Belépés ideje'];
+    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.chamberNumber || '', formatDateTime(p.checkedInAt) || '']);
     const tsv = [header, ...rows].map(r => r.join('\t')).join('\n');
 
     try {
       await navigator.clipboard.writeText(tsv);
     } catch (e) {
+      // Vágólap API nem elérhető (pl. nem HTTPS) - kijelöljük a táblázatot helyette
       const range = document.createRange();
       range.selectNode(document.getElementById('export-table'));
       window.getSelection().removeAllRanges();
@@ -741,27 +592,26 @@
     setTimeout(() => copyMsg.classList.remove('show'), 1600);
   });
 
+  const PAGE_STEP = 20;
+  let visibleCount = PAGE_STEP;
+
   function render() {
     const q = document.getElementById('search').value.toLowerCase();
     const listEl = document.getElementById('plist');
-    const adminLoadMore = document.getElementById('admin-load-more');
-
     listEl.innerHTML = '';
 
     const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
     selectAllCb.checked = filtered.length > 0 && filtered.every(p => selectedIds.has(p.id));
 
-    const visibleAdmin = filtered.slice(0, adminLimit);
-    if (filtered.length > adminLimit) {
-      adminLoadMore.style.display = 'block';
-      adminLoadMore.textContent = `Továbbiak betöltése (${visibleAdmin.length} / ${filtered.length})`;
-    } else {
-      adminLoadMore.style.display = 'none';
-    }
+    const visible = filtered.slice(0, visibleCount);
 
-    const fragment = document.createDocumentFragment();
+    const moreBtn = document.getElementById('more-btn');
+    const lessBtn = document.getElementById('less-btn');
+    moreBtn.textContent = `Továbbiak betöltése (${Math.min(visibleCount, filtered.length)} / ${filtered.length})`;
+    moreBtn.classList.toggle('hidden', visibleCount >= filtered.length);
+    lessBtn.classList.toggle('hidden', visibleCount <= PAGE_STEP);
 
-    visibleAdmin.forEach(p => {
+    visible.forEach(p => {
       const row = document.createElement('div');
       row.className = 'prow' + (p.trainingAccepted ? ' trained' : '');
       const isChecked = selectedIds.has(p.id) ? 'checked' : '';
@@ -777,15 +627,12 @@
         <button class="btn small ghost toggle-btn">${p.checkedIn ? 'Kiléptetés' : 'Beléptetés'}</button>
         <button class="btn small danger del-btn">X</button>`;
       
-      fragment.appendChild(row);
+      listEl.appendChild(row);
+      
+      const qrElement = document.getElementById(`qr-${p.id}`);
+      try { new QRCode(qrElement, { text: p.id, width: 50, height: 50 }); } catch(e){}
 
-      setTimeout(() => {
-        const qrElement = document.getElementById(`qr-${p.id}`);
-        if (qrElement) {
-          try { new QRCode(qrElement, { text: p.id, width: 50, height: 50 }); } catch(e){}
-          qrElement.onclick = () => openQrModal(p.name, p.id);
-        }
-      }, 0);
+      qrElement.onclick = () => openQrModal(p.name, p.id);
 
       row.querySelector('.row-cb').onchange = (e) => {
         if (e.target.checked) selectedIds.add(p.id);
@@ -794,44 +641,48 @@
       };
 
       row.querySelector('.toggle-btn').onclick = () => {
-        const nowIso = new Date().toISOString();
         updateDoc(doc(db, "participants", p.id), {
           checkedIn: !p.checkedIn,
-          checkedInAt: !p.checkedIn ? nowIso : p.checkedInAt,
-          checkedOutAt: p.checkedIn ? nowIso : p.checkedOutAt
+          checkedInAt: !p.checkedIn ? new Date().toISOString() : null
         });
       };
-      
       row.querySelector('.del-btn').onclick = () => {
         deleteDoc(doc(db, "participants", p.id));
         selectedIds.delete(p.id);
       };
     });
 
-    listEl.appendChild(fragment);
-
     document.getElementById('stat-total').textContent = participants.length;
     document.getElementById('stat-in').textContent = participants.filter(p => p.checkedIn).length;
     document.getElementById('stat-trained').textContent = participants.filter(p => p.trainingAccepted).length;
-    
-    renderDisplay();
+    const tbody = document.getElementById('display-tbody');
+    tbody.innerHTML = participants.map(p => `
+      <tr class="${p.trainingAccepted ? 'trained' : ''}">
+        <td><code>${p.id}</code></td>
+        <td><b>${p.name}</b></td>
+        <td><span class="badge ${p.checkedIn ? 'in' : 'out'}">${p.checkedIn ? 'BENN' : 'VÁR'}</span></td>
+        <td>${p.trainingAccepted ? '<span class="badge train">ELFOGADVA</span>' : '—'}</td>
+        <td>${p.checkedInAt ? new Date(p.checkedInAt).toLocaleTimeString() : '—'}</td>
+      </tr>
+    `).join('');
+
     renderExport();
   }
 
-  document.getElementById('search').addEventListener('input', () => {
-    adminLimit = 20;
+  document.getElementById('more-btn').addEventListener('click', () => {
+    visibleCount += PAGE_STEP;
+    render();
+  });
+  document.getElementById('less-btn').addEventListener('click', () => {
+    visibleCount = Math.max(PAGE_STEP, visibleCount - PAGE_STEP);
     render();
   });
 
-  document.getElementById('display-search').addEventListener('input', () => {
-    displayLimit = 20;
-    renderDisplay();
+  document.getElementById('search').addEventListener('input', () => {
+    visibleCount = PAGE_STEP;
+    render();
   });
-
-  document.getElementById('export-search').addEventListener('input', () => {
-    exportLimit = 20;
-    renderExport();
-  });
+  document.getElementById('export-search').addEventListener('input', renderExport);
 </script>
 </body>
 </html>
