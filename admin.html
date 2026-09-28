@@ -182,17 +182,23 @@
   <section class="view" id="view-export">
     <div class="panel">
       <h2 class="display-title">Elfogadott továbbképzések</h2>
-
-      <input type="text" id="export-search" placeholder="Keresés kód, név, kamarai szám vagy belépés ideje szerint..." style="margin:12px 0;">
+      <p style="color:var(--text-dim); font-size:.82rem; margin-top:-6px;">
+        Csak azok a résztvevők szerepelnek, akiknél a Kivetítő fülön a Továbbképzés ELFOGADVA státuszú.
+        A Kamarai szám oszlop azt mutatja, amit a résztvevő a beolvasónál a továbbképzés elfogadása után megadott.
+        A táblázat gombbal Excelbe / Google Táblázatba beilleszthető formában másolható.
+      </p>
+      <input type="text" id="export-search" placeholder="Keresés kód, név, kamarai szám, belépés vagy kilépés ideje szerint..." style="margin:12px 0;">
       <div class="export-bar">
         <div class="count"><b id="export-count">0</b> résztvevő</div>
         <div>
+          <span class="copy-msg" id="export-msg"></span>
+          <button class="btn small ghost" id="export-out-btn">Kiléptetés</button>
           <button class="btn small" id="copy-btn">Táblázat másolása</button>
           <span class="copy-msg" id="copy-msg">Másolva!</span>
         </div>
       </div>
       <table id="export-table">
-        <thead><tr><th style="width:34px;"><input type="checkbox" id="export-select-all" class="select-box"></th><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>Kamarai szám</th><th>Belépés ideje</th></tr></thead>
+        <thead><tr><th style="width:34px;"><input type="checkbox" id="export-select-all" class="select-box"></th><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>Kamarai szám</th><th>Belépés ideje</th><th>Kilépés ideje</th></tr></thead>
         <tbody id="export-tbody"></tbody>
       </table>
       <div class="empty-note" id="export-empty" style="display:none;">Egyelőre senki nem fogadta el a továbbképzést.</div>
@@ -350,6 +356,7 @@
       name: name,
       checkedIn: false,
       checkedInAt: null,
+      checkedOutAt: null,
       trainingAccepted: false,
       trainingAcceptedAt: null,
       chamberNumber: null,
@@ -422,6 +429,7 @@
               name: extractedName,
               checkedIn: false,
               checkedInAt: null,
+              checkedOutAt: null,
               trainingAccepted: false,
               trainingAcceptedAt: null,
               chamberNumber: null,
@@ -454,13 +462,13 @@
 
   document.getElementById('bulk-in-btn').onclick = async () => {
     for (let id of selectedIds) {
-      await updateDoc(doc(db, "participants", id), { checkedIn: true, checkedInAt: new Date().toISOString() });
+      await updateDoc(doc(db, "participants", id), { checkedIn: true, checkedInAt: new Date().toISOString(), checkedOutAt: null });
     }
   };
 
   document.getElementById('bulk-out-btn').onclick = async () => {
     for (let id of selectedIds) {
-      await updateDoc(doc(db, "participants", id), { checkedIn: false, checkedInAt: null });
+      await updateDoc(doc(db, "participants", id), { checkedIn: false, checkedOutAt: new Date().toISOString() });
     }
   };
 
@@ -533,16 +541,21 @@
   const copyBtn = document.getElementById('copy-btn');
   const copyMsg = document.getElementById('copy-msg');
 
+  let exportVisible = [];
+
   function renderExport(){
     const query = document.getElementById('export-search').value.trim().toLowerCase();
     const trained = participants.filter(p => p.trainingAccepted).filter(p => {
       if (!query) return true;
       const time = (formatDateTime(p.checkedInAt) || '').toLowerCase();
+      const outTime = (formatDateTime(p.checkedOutAt) || '').toLowerCase();
       return p.id.toLowerCase().includes(query)
         || p.name.toLowerCase().includes(query)
         || (p.chamberNumber || '').toLowerCase().includes(query)
-        || time.includes(query);
+        || time.includes(query)
+        || outTime.includes(query);
     });
+    exportVisible = trained;
     const tbody = document.getElementById('export-tbody');
     document.getElementById('export-count').textContent = trained.length;
     const emptyEl = document.getElementById('export-empty');
@@ -552,6 +565,7 @@
 
     tbody.innerHTML = trained.map(p => {
       const checkinTime = formatDateTime(p.checkedInAt);
+      const checkoutTime = formatDateTime(p.checkedOutAt);
       const isChecked = selectedIds.has(p.id) ? 'checked' : '';
       return `
       <tr>
@@ -561,6 +575,7 @@
         <td>Elfogadva</td>
         <td class="mono ${p.chamberNumber ? '' : 'missing'}">${p.chamberNumber ? p.chamberNumber : '—'}</td>
         <td class="${checkinTime ? '' : 'missing'}">${checkinTime ? checkinTime : '—'}</td>
+        <td class="${checkoutTime ? '' : 'missing'}">${checkoutTime ? checkoutTime : '—'}</td>
       </tr>
     `;
     }).join('');
@@ -582,10 +597,43 @@
     });
   }
 
+  // Kiléptetés a Táblázat fülről: a kijelölt (és látható) sorokat kiléptetjük, a belépés idejét megtartjuk
+  const exportOutBtn = document.getElementById('export-out-btn');
+  const exportMsg = document.getElementById('export-msg');
+  function showExportMsg(text){
+    exportMsg.textContent = text;
+    exportMsg.classList.add('show');
+    setTimeout(() => exportMsg.classList.remove('show'), 2200);
+  }
+  exportOutBtn.addEventListener('click', async () => {
+    const chosen = exportVisible.filter(p => selectedIds.has(p.id));
+    if (chosen.length === 0){
+      showExportMsg('Előbb jelölj ki valakit.');
+      return;
+    }
+    const toExit = chosen.filter(p => p.checkedIn);
+    if (toExit.length === 0){
+      showExportMsg('A kijelöltek már ki vannak léptetve.');
+      return;
+    }
+    exportOutBtn.disabled = true;
+    const now = new Date().toISOString();
+    try {
+      for (const p of toExit){
+        await updateDoc(doc(db, "participants", p.id), { checkedIn: false, checkedOutAt: now });
+      }
+      showExportMsg(`${toExit.length} résztvevő kiléptetve.`);
+    } catch (e) {
+      console.error('Kiléptetés sikertelen:', e);
+      showExportMsg('Nem sikerült a kiléptetés.');
+    }
+    exportOutBtn.disabled = false;
+  });
+
   copyBtn.addEventListener('click', async () => {
     const trained = participants.filter(p => p.trainingAccepted);
-    const header = ['Kód', 'Név', 'Továbbképzés', 'Kamarai szám', 'Belépés ideje'];
-    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.chamberNumber || '', formatDateTime(p.checkedInAt) || '']);
+    const header = ['Kód', 'Név', 'Továbbképzés', 'Kamarai szám', 'Belépés ideje', 'Kilépés ideje'];
+    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.chamberNumber || '', formatDateTime(p.checkedInAt) || '', formatDateTime(p.checkedOutAt) || '']);
     const tsv = [header, ...rows].map(r => r.join('\t')).join('\n');
 
     try {
@@ -655,7 +703,9 @@
       row.querySelector('.toggle-btn').onclick = () => {
         updateDoc(doc(db, "participants", p.id), {
           checkedIn: !p.checkedIn,
-          checkedInAt: !p.checkedIn ? new Date().toISOString() : null
+          ...(!p.checkedIn
+            ? { checkedInAt: new Date().toISOString(), checkedOutAt: null }
+            : { checkedOutAt: new Date().toISOString() })
         });
       };
       row.querySelector('.del-btn').onclick = () => {
@@ -685,7 +735,7 @@
       if (!query) return true;
       const status = p.checkedIn ? 'benn' : 'vár';
       const training = p.trainingAccepted ? 'elfogadva' : '';
-      const time = p.checkedInAt ? new Date(p.checkedInAt).toLocaleTimeString().toLowerCase() : '';
+      const time = (p.checkedIn && p.checkedInAt) ? new Date(p.checkedInAt).toLocaleTimeString().toLowerCase() : '';
       return p.id.toLowerCase().includes(query)
         || p.name.toLowerCase().includes(query)
         || status.includes(query)
@@ -701,7 +751,7 @@
         <td><b>${p.name}</b></td>
         <td><span class="badge ${p.checkedIn ? 'in' : 'out'}">${p.checkedIn ? 'BENN' : 'VÁR'}</span></td>
         <td>${p.trainingAccepted ? '<span class="badge train">ELFOGADVA</span>' : '—'}</td>
-        <td>${p.checkedInAt ? new Date(p.checkedInAt).toLocaleTimeString() : '—'}</td>
+        <td>${(p.checkedIn && p.checkedInAt) ? new Date(p.checkedInAt).toLocaleTimeString() : '—'}</td>
       </tr>
     `).join('');
 
