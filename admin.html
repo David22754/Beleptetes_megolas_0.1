@@ -71,6 +71,12 @@
   .more-btn:hover{ background:var(--panel-alt); }
   .more-btn.hidden{ display:none; }
 
+  .chip-row{ display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 4px; }
+  .chip{ background:transparent; color:var(--text-dim); border:1px solid var(--border); border-radius:999px; padding:6px 12px; font-family:inherit; font-size:.75rem; font-weight:600; cursor:pointer; transition:background .15s, color .15s, border-color .15s; }
+  .chip:hover{ background:var(--panel-alt); }
+  .chip.active{ background:var(--good-bg); color:var(--good); border-color:var(--good); }
+  .chip.accent.active{ background:rgba(227,168,87,.16); color:var(--accent); border-color:var(--accent); }
+
   table{ width:100%; border-collapse:collapse; margin-top:10px; }
   th,td{ padding:10px; text-align:left; border-bottom:1px solid var(--border); }
   tr.trained td{ background:rgba(111,162,135,.08); }
@@ -156,10 +162,20 @@
       <div style="margin-bottom:15px; font-size:1.1rem;">
         Összesen: <b id="stat-total">0</b> | Belépve: <b id="stat-in" style="color:var(--good);">0</b> | Továbbképzés elfogadva: <b id="stat-trained" style="color:var(--accent);">0</b>
       </div>
+      <input type="text" id="display-search" placeholder="Keresés kód, név, státusz vagy idő szerint..." style="margin-bottom:6px;">
+      <div class="chip-row">
+        <button type="button" class="chip" id="chip-in">Belépve</button>
+        <button type="button" class="chip accent" id="chip-trained">Továbbképzés elfogadva</button>
+      </div>
       <table>
         <thead><tr><th>Kód</th><th>Név</th><th>Státusz</th><th>Továbbképzés</th><th>Idő</th></tr></thead>
         <tbody id="display-tbody"></tbody>
       </table>
+      <div class="empty-note" id="display-empty" style="display:none;">Nincs a keresésnek megfelelő találat.</div>
+      <div class="more-row">
+        <button class="more-btn" id="display-less-btn">Kevesebb mutatása</button>
+        <button class="more-btn" id="display-more-btn">Továbbiak betöltése</button>
+      </div>
     </div>
   </section>
 
@@ -652,11 +668,38 @@
       };
     });
 
+    renderDisplay();
+    renderExport();
+  }
+
+  // Kivetítő fül: kereső + több/kevesebb mutatás (20-asával)
+  let displayVisibleCount = PAGE_STEP;
+  let filterCheckedIn = false;
+  let filterTrained = false;
+
+  function renderDisplay() {
     document.getElementById('stat-total').textContent = participants.length;
     document.getElementById('stat-in').textContent = participants.filter(p => p.checkedIn).length;
     document.getElementById('stat-trained').textContent = participants.filter(p => p.trainingAccepted).length;
+
+    const query = document.getElementById('display-search').value.trim().toLowerCase();
+    const filtered = participants.filter(p => {
+      if (filterCheckedIn && !p.checkedIn) return false;
+      if (filterTrained && !p.trainingAccepted) return false;
+      if (!query) return true;
+      const status = p.checkedIn ? 'benn' : 'vár';
+      const training = p.trainingAccepted ? 'elfogadva' : '';
+      const time = p.checkedInAt ? new Date(p.checkedInAt).toLocaleTimeString().toLowerCase() : '';
+      return p.id.toLowerCase().includes(query)
+        || p.name.toLowerCase().includes(query)
+        || status.includes(query)
+        || training.includes(query)
+        || time.includes(query);
+    });
+    const visible = filtered.slice(0, displayVisibleCount);
+
     const tbody = document.getElementById('display-tbody');
-    tbody.innerHTML = participants.map(p => `
+    tbody.innerHTML = visible.map(p => `
       <tr class="${p.trainingAccepted ? 'trained' : ''}">
         <td><code>${p.id}</code></td>
         <td><b>${p.name}</b></td>
@@ -666,8 +709,40 @@
       </tr>
     `).join('');
 
-    renderExport();
+    document.getElementById('display-empty').style.display = filtered.length ? 'none' : 'block';
+
+    const moreBtn = document.getElementById('display-more-btn');
+    const lessBtn = document.getElementById('display-less-btn');
+    moreBtn.textContent = `Továbbiak betöltése (${Math.min(displayVisibleCount, filtered.length)} / ${filtered.length})`;
+    moreBtn.classList.toggle('hidden', displayVisibleCount >= filtered.length);
+    lessBtn.classList.toggle('hidden', displayVisibleCount <= PAGE_STEP);
   }
+
+  document.getElementById('display-more-btn').addEventListener('click', () => {
+    displayVisibleCount += PAGE_STEP;
+    renderDisplay();
+  });
+  document.getElementById('display-less-btn').addEventListener('click', () => {
+    displayVisibleCount = Math.max(PAGE_STEP, displayVisibleCount - PAGE_STEP);
+    renderDisplay();
+  });
+  document.getElementById('display-search').addEventListener('input', () => {
+    displayVisibleCount = PAGE_STEP;
+    renderDisplay();
+  });
+
+  document.getElementById('chip-in').addEventListener('click', (e) => {
+    filterCheckedIn = !filterCheckedIn;
+    e.currentTarget.classList.toggle('active', filterCheckedIn);
+    displayVisibleCount = PAGE_STEP;
+    renderDisplay();
+  });
+  document.getElementById('chip-trained').addEventListener('click', (e) => {
+    filterTrained = !filterTrained;
+    e.currentTarget.classList.toggle('active', filterTrained);
+    displayVisibleCount = PAGE_STEP;
+    renderDisplay();
+  });
 
   document.getElementById('more-btn').addEventListener('click', () => {
     visibleCount += PAGE_STEP;
