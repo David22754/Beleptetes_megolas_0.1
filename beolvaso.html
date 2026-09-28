@@ -360,7 +360,7 @@
         const s = await tx.get(current.ref);
         if (!s.exists()) return 'missing';
         if (s.data().checkedIn) return 'already';
-        tx.update(current.ref, { checkedIn:true, checkedInAt:new Date().toISOString() });
+        tx.update(current.ref, { checkedIn:true, checkedInAt:new Date().toISOString(), checkedOutAt:null });
         return 'done';
       });
 
