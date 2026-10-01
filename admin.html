@@ -91,15 +91,17 @@
   #export-table td.missing{ color:var(--text-dim); }
   .empty-note{ color:var(--text-dim); font-size:.82rem; padding:14px 4px; }
 
-  .modal-backdrop{ position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:999; backdrop-filter:blur(4px); }
+  /* MÓDOSÍTOTT FEHÉR KÁRTYA STÍLUS A MODALBAN */
+  .modal-backdrop{ position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); display:none; align-items:center; justify-content:center; z-index:999; backdrop-filter:blur(4px); }
   .modal-backdrop.active{ display:flex; }
-  .modal-card{ background:var(--panel); border:1px solid var(--border); padding:24px; border-radius:16px; text-align:center; max-width:320px; width:90%; box-shadow:0 20px 40px rgba(0,0,0,0.5); }
-  .modal-card h3{ margin:0 0 2px 0; font-family:'Fraunces', serif; font-size:1.3rem; word-break:break-word; }
-  .modal-card .company-sub{ color:var(--accent); font-size:.82rem; margin-bottom:4px; font-weight:500; }
-  .modal-card p{ margin:0 0 16px 0; color:var(--text-dim); font-size:.8rem; }
-  .modal-qr{ background:#fff; padding:16px; border-radius:12px; display:inline-block; margin-bottom:16px; }
-  .modal-actions{ display:flex; gap:10px; }
+  .modal-card{ background:#ffffff; border:1px solid #e0e0e0; padding:24px; border-radius:20px; text-align:center; max-width:340px; width:90%; box-shadow:0 20px 40px rgba(0,0,0,0.6); color:#14171A; }
+  .modal-card h3{ margin:0 0 2px 0; font-family:'Fraunces', serif; font-size:1.5rem; color:#14171A; word-break:break-word; }
+  .modal-card p.modal-code-text{ margin:0 0 14px 0; color:#555555; font-size:.9rem; font-weight:500; }
+  .modal-card .company-sub{ color:#14171A; font-size:1.15rem; margin-top:14px; font-weight:600; font-family:'IBM Plex Mono', monospace; word-break:break-word; }
+  .modal-qr{ background:#fff; padding:10px; border-radius:12px; display:inline-block; }
+  .modal-actions{ display:flex; gap:10px; margin-top:18px; }
   .modal-actions button{ flex:1; }
+  .modal-actions .btn.ghost{ color:#14171A; border-color:#ccc; }
   .dl-msg{ display:block; font-size:.72rem; color:var(--good); margin-top:10px; opacity:0; transition:opacity .2s; }
   .dl-msg.show{ opacity:1; }
 </style>
@@ -209,12 +211,13 @@
   </section>
 </div>
 
+<!-- ÚJ ELRENDEZÉSŰ, FEHÉR ELŐNÉZETI MODAL -->
 <div class="modal-backdrop" id="qr-modal">
   <div class="modal-card">
     <h3 id="modal-name">Résztvevő Neve</h3>
-    <div class="company-sub" id="modal-company">Cég neve</div>
-    <p id="modal-code">KÓD123</p>
+    <p class="modal-code-text" id="modal-code">Azonosító: KÓD123</p>
     <div class="modal-qr" id="modal-qr-box"></div>
+    <div class="company-sub" id="modal-company">Cég neve</div>
     <div class="modal-actions">
       <button class="btn ghost" id="modal-close-btn">Bezárás</button>
       <button class="btn" id="modal-download-btn">Letöltés</button>
@@ -267,7 +270,7 @@
     return d.toLocaleTimeString('hu-HU');
   }
 
-  // ---- QR kártya kép generálása (Fehér háttér, fekete szövegek, cégnév alul) ----
+  // ---- QR kártya kép generálása (Tiszta fehér háttér, fekete feliratok, Cég alul) ----
 
   function roundRect(ctx, x, y, w, h, r){
     ctx.beginPath();
@@ -303,13 +306,13 @@
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
 
-    // Teljes keret és fehér háttér
+    // Fehér alapháttér és finom keret
     ctx.fillStyle = '#ffffff';
     roundRect(ctx, 0, 0, W, H, 20); ctx.fill();
     ctx.strokeStyle = '#e0e0e0'; ctx.lineWidth = 2;
     roundRect(ctx, 1, 1, W - 2, H - 2, 20); ctx.stroke();
 
-    // Név (Nagyobb, fekete)
+    // Név (Nagy, fekete)
     ctx.fillStyle = '#14171A';
     ctx.font = '600 26px Fraunces, serif';
     ctx.textAlign = 'center';
@@ -320,7 +323,7 @@
     ctx.font = '500 15px "IBM Plex Mono", monospace';
     ctx.fillText('Azonosító: ' + code, W / 2, 74);
 
-    // QR-kód doboz
+    // QR-kód elhelyezése
     const boxSize = 250, boxX = (W - boxSize) / 2, boxY = 92;
     ctx.fillStyle = '#ffffff';
     roundRect(ctx, boxX, boxY, boxSize, boxSize, 12); ctx.fill();
@@ -333,10 +336,10 @@
       ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
     }
 
-    // Cégnév a QR-kód alatt (Kiemelt fekete szöveg)
+    // CÉGNÉV A QR KÓD ALATT (Fekete, nagyobb méret)
     ctx.fillStyle = '#14171A';
-    ctx.font = '600 20px "IBM Plex Mono", monospace';
-    ctx.fillText(company || '—', W / 2, 382, W - 40);
+    ctx.font = '600 21px "IBM Plex Mono", monospace';
+    ctx.fillText(company || '—', W / 2, 385, W - 40);
 
     document.body.removeChild(tempDiv);
     return canvas.toDataURL('image/png');
@@ -381,7 +384,7 @@
     inputCompany.value = '';
   });
 
-  // Drag and Drop CSV / TXT Feldolgozás (Név, Cég)
+  // Drag and Drop CSV / TXT Feldolgozás
   const dropZone = document.getElementById('drop-zone');
   const csvFile = document.getElementById('csv-file');
   const importResult = document.getElementById('import-result');
@@ -539,7 +542,7 @@
     document.getElementById('modal-company').textContent = company || '—';
     document.getElementById('modal-code').textContent = "Azonosító: " + code;
     modalQrBox.innerHTML = '';
-    new QRCode(modalQrBox, { text: code, width: 200, height: 200 });
+    new QRCode(modalQrBox, { text: code, width: 220, height: 220 });
     modalDlMsg.classList.remove('show');
     modal.classList.add('active');
   }
