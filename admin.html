@@ -56,6 +56,7 @@
   .prow .qr:hover{ transform:scale(1.08); }
   .prow .info{ flex:1; overflow:hidden; }
   .prow .info b{ display:block; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
+  .prow .info span{ display:block; font-size:.75rem; color:var(--text-dim); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
   .badges{ display:flex; flex-direction:column; gap:4px; align-items:flex-end; }
   .badge{ font-size:.7rem; padding:2px 6px; border-radius:10px; font-weight:600; white-space:nowrap; }
   .badge.in{ background:var(--good-bg); color:var(--good); }
@@ -93,7 +94,8 @@
   .modal-backdrop{ position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); display:none; align-items:center; justify-content:center; z-index:999; backdrop-filter:blur(4px); }
   .modal-backdrop.active{ display:flex; }
   .modal-card{ background:var(--panel); border:1px solid var(--border); padding:24px; border-radius:16px; text-align:center; max-width:320px; width:90%; box-shadow:0 20px 40px rgba(0,0,0,0.5); }
-  .modal-card h3{ margin:0 0 6px 0; font-family:'Fraunces', serif; font-size:1.3rem; word-break:break-word; }
+  .modal-card h3{ margin:0 0 2px 0; font-family:'Fraunces', serif; font-size:1.3rem; word-break:break-word; }
+  .modal-card .company-sub{ color:var(--accent); font-size:.82rem; margin-bottom:4px; font-weight:500; }
   .modal-card p{ margin:0 0 16px 0; color:var(--text-dim); font-size:.8rem; }
   .modal-qr{ background:#fff; padding:16px; border-radius:12px; display:inline-block; margin-bottom:16px; }
   .modal-actions{ display:flex; gap:10px; }
@@ -120,24 +122,25 @@
     <div class="panel">
       <label>Egyéni résztvevő hozzáadása</label>
       <div class="row">
-        <input type="text" id="new-name" placeholder="Név">
+        <input type="text" id="new-name" placeholder="Név" style="flex:1;">
+        <input type="text" id="new-company" placeholder="Cég" style="flex:1;">
         <button class="btn" id="add-btn">Hozzáadás</button>
       </div>
     </div>
 
-    <!-- Drag and Drop CSV Feltöltő Zóna -->
+    <!-- Drag and Drop CSV / TXT Feltöltő Zóna -->
     <div class="panel">
-      <label>CSV Tömeges Feltöltés</label>
+      <label>CSV / TXT Tömeges Feltöltés (Név, Cég)</label>
       <div class="drop-zone" id="drop-zone">
         <div class="drop-zone-text" id="drop-zone-text">
-          Húzd ide a CSV fájlt, vagy <b>Kattints a tallózáshoz</b>
+          Húzd ide a CSV / TXT fájlt, vagy <b>Kattints a tallózáshoz</b>
         </div>
-        <input type="file" id="csv-file" accept=".csv,text/csv" style="display:none;">
+        <input type="file" id="csv-file" accept=".csv,text/csv,.txt,text/plain" style="display:none;">
       </div>
       <div id="import-result" style="margin-top:8px; font-size:.78rem; color:var(--text-dim);"></div>
     </div>
 
-    <input type="text" id="search" placeholder="Keresés..." style="margin-bottom:10px;">
+    <input type="text" id="search" placeholder="Keresés név, cég vagy kód szerint..." style="margin-bottom:10px;">
 
     <div class="bulk-bar">
       <label><input type="checkbox" id="select-all" class="select-box"> Mind</label>
@@ -162,13 +165,13 @@
       <div style="margin-bottom:15px; font-size:1.1rem;">
         Összesen: <b id="stat-total">0</b> | Belépve: <b id="stat-in" style="color:var(--good);">0</b> | Továbbképzés elfogadva: <b id="stat-trained" style="color:var(--accent);">0</b>
       </div>
-      <input type="text" id="display-search" placeholder="Keresés kód, név, státusz vagy idő szerint..." style="margin-bottom:6px;">
+      <input type="text" id="display-search" placeholder="Keresés kód, név, cég, státusz vagy idő szerint..." style="margin-bottom:6px;">
       <div class="chip-row">
         <button type="button" class="chip" id="chip-in">Belépve</button>
         <button type="button" class="chip accent" id="chip-trained">Továbbképzés elfogadva</button>
       </div>
       <table>
-        <thead><tr><th>Kód</th><th>Név</th><th>Státusz</th><th>Továbbképzés</th><th>Idő</th></tr></thead>
+        <thead><tr><th>Kód</th><th>Név</th><th>Cég</th><th>Státusz</th><th>Továbbképzés</th><th>Idő</th></tr></thead>
         <tbody id="display-tbody"></tbody>
       </table>
       <div class="empty-note" id="display-empty" style="display:none;">Nincs a keresésnek megfelelő találat.</div>
@@ -187,7 +190,7 @@
         A Kamarai szám oszlop azt mutatja, amit a résztvevő a beolvasónál a továbbképzés elfogadása után megadott.
         A táblázat gombbal Excelbe / Google Táblázatba beilleszthető formában másolható.
       </p>
-      <input type="text" id="export-search" placeholder="Keresés kód, név, kamarai szám, belépés vagy kilépés ideje szerint..." style="margin:12px 0;">
+      <input type="text" id="export-search" placeholder="Keresés kód, név, cég, kamarai szám, belépés vagy kilépés ideje szerint..." style="margin:12px 0;">
       <div class="export-bar">
         <div class="count"><b id="export-count">0</b> résztvevő</div>
         <div>
@@ -198,7 +201,7 @@
         </div>
       </div>
       <table id="export-table">
-        <thead><tr><th style="width:34px;"><input type="checkbox" id="export-select-all" class="select-box"></th><th>Kód</th><th>Név</th><th>Továbbképzés</th><th>Kamarai szám</th><th>Belépés ideje</th><th>Kilépés ideje</th></tr></thead>
+        <thead><tr><th style="width:34px;"><input type="checkbox" id="export-select-all" class="select-box"></th><th>Kód</th><th>Név</th><th>Cég</th><th>Továbbképzés</th><th>Kamarai szám</th><th>Belépés ideje</th><th>Kilépés ideje</th></tr></thead>
         <tbody id="export-tbody"></tbody>
       </table>
       <div class="empty-note" id="export-empty" style="display:none;">Egyelőre senki nem fogadta el a továbbképzést.</div>
@@ -209,6 +212,7 @@
 <div class="modal-backdrop" id="qr-modal">
   <div class="modal-card">
     <h3 id="modal-name">Résztvevő Neve</h3>
+    <div class="company-sub" id="modal-company">Cég neve</div>
     <p id="modal-code">KÓD123</p>
     <div class="modal-qr" id="modal-qr-box"></div>
     <div class="modal-actions">
@@ -263,7 +267,7 @@
     return d.toLocaleTimeString('hu-HU');
   }
 
-  // ---- QR kártya kép generálása (a mintakép stílusában) és letöltése ----
+  // ---- QR kártya kép generálása (Cégnévvel kibővítve) és letöltése ----
 
   function roundRect(ctx, x, y, w, h, r){
     ctx.beginPath();
@@ -281,7 +285,7 @@
     return `${clean || 'reszvevo'}_${code}.png`;
   }
 
-  async function generateQrCardDataUrl(name, code){
+  async function generateQrCardDataUrl(name, company, code){
     if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch(e){} }
 
     const tempDiv = document.createElement('div');
@@ -290,12 +294,11 @@
     document.body.appendChild(tempDiv);
     new QRCode(tempDiv, { text: code, width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M });
 
-    // a qrcodejs kis késleltetéssel rajzol le bizonyos böngészőkben
     await new Promise(res => setTimeout(res, 60));
     const qrCanvas = tempDiv.querySelector('canvas');
     const qrImg = tempDiv.querySelector('img');
 
-    const W = 340, H = 430;
+    const W = 340, H = 450;
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
@@ -306,19 +309,23 @@
     roundRect(ctx, 0.5, 0.5, W - 1, H - 1, 20); ctx.stroke();
 
     ctx.fillStyle = '#F1EEE7';
-    ctx.font = '600 23px Fraunces, serif';
+    ctx.font = '600 21px Fraunces, serif';
     ctx.textAlign = 'center';
-    ctx.fillText(name, W / 2, 52, W - 40);
+    ctx.fillText(name, W / 2, 45, W - 40);
+
+    ctx.fillStyle = '#E3A857';
+    ctx.font = '500 13px "IBM Plex Mono", monospace';
+    ctx.fillText(company || '—', W / 2, 65, W - 40);
 
     ctx.fillStyle = '#9BA3AC';
-    ctx.font = '400 14px "IBM Plex Mono", monospace';
-    ctx.fillText('Azonosító: ' + code, W / 2, 78);
+    ctx.font = '400 13px "IBM Plex Mono", monospace';
+    ctx.fillText('Azonosító: ' + code, W / 2, 85);
 
-    const boxSize = 260, boxX = (W - boxSize) / 2, boxY = 104;
+    const boxSize = 250, boxX = (W - boxSize) / 2, boxY = 100;
     ctx.fillStyle = '#ffffff';
     roundRect(ctx, boxX, boxY, boxSize, boxSize, 14); ctx.fill();
 
-    const qrSize = 236, qrX = (W - qrSize) / 2, qrY = boxY + (boxSize - qrSize) / 2;
+    const qrSize = 226, qrX = (W - qrSize) / 2, qrY = boxY + (boxSize - qrSize) / 2;
     if (qrCanvas) {
       ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
     } else if (qrImg) {
@@ -339,8 +346,8 @@
     document.body.removeChild(a);
   }
 
-  async function downloadQrCard(name, code){
-    const dataUrl = await generateQrCardDataUrl(name, code);
+  async function downloadQrCard(name, company, code){
+    const dataUrl = await generateQrCardDataUrl(name, company, code);
     triggerDownload(dataUrl, safeFilename(name, code));
     return dataUrl;
   }
@@ -348,12 +355,15 @@
   // ---- Résztvevő hozzáadása ----
 
   document.getElementById('add-btn').addEventListener('click', async () => {
-    const input = document.getElementById('new-name');
-    const name = input.value.trim();
+    const inputName = document.getElementById('new-name');
+    const inputCompany = document.getElementById('new-company');
+    const name = inputName.value.trim();
+    const company = inputCompany.value.trim();
     if (!name) return;
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     await setDoc(doc(db, "participants", code), {
       name: name,
+      company: company || '',
       checkedIn: false,
       checkedInAt: null,
       checkedOutAt: null,
@@ -362,10 +372,11 @@
       chamberNumber: null,
       chamberNumberAt: null
     });
-    input.value = '';
+    inputName.value = '';
+    inputCompany.value = '';
   });
 
-  // Drag and Drop CSV Feldolgozás
+  // Drag and Drop CSV / TXT Feldolgozás (Név, Cég támogatásával)
   const dropZone = document.getElementById('drop-zone');
   const csvFile = document.getElementById('csv-file');
   const importResult = document.getElementById('import-result');
@@ -405,28 +416,33 @@
       let added = 0;
       importResult.textContent = "Feltöltés folyamatban...";
 
-      const delimiter = lines[0].includes(';') ? ';' : ',';
+      const delimiter = lines[0].includes(';') ? ';' : (lines[0].includes('\t') ? '\t' : ',');
       const headerCols = lines[0].split(delimiter).map(c => c.trim().replace(/^["']|["']$/g, '').toUpperCase());
-      let nameIndex = headerCols.findIndex(col => col === 'NAME' || col === 'NÉV' || col === 'NEV');
       
+      let nameIndex = headerCols.findIndex(col => col === 'NAME' || col === 'NÉV' || col === 'NEV');
+      let companyIndex = headerCols.findIndex(col => col === 'COMPANY' || col === 'CÉG' || col === 'CEG');
+
       let startRow = 0;
       if (nameIndex !== -1) {
         startRow = 1;
       } else {
-        const firstRowCols = lines[0].split(delimiter);
-        nameIndex = firstRowCols.length >= 3 ? 2 : 0; 
+        nameIndex = 0;
+        companyIndex = 1; 
       }
 
       for (let i = startRow; i < lines.length; i++) {
         const cols = lines[i].split(delimiter);
         if (cols[nameIndex]) {
           let extractedName = cols[nameIndex].trim().replace(/^["']|["']$/g, '');
+          let extractedCompany = (companyIndex !== -1 && cols[companyIndex]) ? cols[companyIndex].trim().replace(/^["']|["']$/g, '') : '';
+
           if (extractedName.toUpperCase() === 'NAME' || extractedName.toUpperCase() === 'NÉV') continue;
 
           if (extractedName) {
             const code = Math.random().toString(36).substring(2, 8).toUpperCase();
             await setDoc(doc(db, "participants", code), {
               name: extractedName,
+              company: extractedCompany,
               checkedIn: false,
               checkedInAt: null,
               checkedOutAt: null,
@@ -450,7 +466,7 @@
   const selectAllCb = document.getElementById('select-all');
   selectAllCb.addEventListener('change', (e) => {
     const q = document.getElementById('search').value.toLowerCase();
-    const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
+    const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || (p.company || '').toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
     
     if (e.target.checked) {
       filtered.forEach(p => selectedIds.add(p.id));
@@ -496,11 +512,10 @@
       const p = chosen[i];
       bulkProgress.textContent = `QR letöltése… (${i + 1}/${chosen.length}) - ${p.name}`;
       try {
-        await downloadQrCard(p.name, p.id);
+        await downloadQrCard(p.name, p.company, p.id);
       } catch (e) {
         console.error('QR letöltés sikertelen:', p.id, e);
       }
-      // rövid szünet két letöltés között, hogy a böngésző ne blokkolja a sorozatot
       await new Promise(res => setTimeout(res, 350));
     }
     bulkProgress.textContent = `Kész: ${chosen.length} QR kód letöltve.`;
@@ -511,11 +526,12 @@
   const modal = document.getElementById('qr-modal');
   const modalQrBox = document.getElementById('modal-qr-box');
   const modalDlMsg = document.getElementById('modal-dl-msg');
-  let modalCurrent = { name: '', code: '' };
+  let modalCurrent = { name: '', company: '', code: '' };
 
-  function openQrModal(name, code) {
-    modalCurrent = { name, code };
+  function openQrModal(name, company, code) {
+    modalCurrent = { name, company, code };
     document.getElementById('modal-name').textContent = name;
+    document.getElementById('modal-company').textContent = company || '—';
     document.getElementById('modal-code').textContent = "Azonosító: " + code;
     modalQrBox.innerHTML = '';
     new QRCode(modalQrBox, { text: code, width: 200, height: 200 });
@@ -529,7 +545,7 @@
   document.getElementById('modal-download-btn').onclick = async () => {
     if (!modalCurrent.code) return;
     try {
-      await downloadQrCard(modalCurrent.name, modalCurrent.code);
+      await downloadQrCard(modalCurrent.name, modalCurrent.company, modalCurrent.code);
       modalDlMsg.classList.add('show');
       setTimeout(() => modalDlMsg.classList.remove('show'), 1600);
     } catch (e) {
@@ -537,7 +553,7 @@
     }
   };
 
-  // Táblázat fül: csak az elfogadott továbbképzésűek, Kamarai számmal és belépési idővel, másolható formátumban
+  // Táblázat fül: Elfogadott továbbképzésűek Cég oszloppal
   const copyBtn = document.getElementById('copy-btn');
   const copyMsg = document.getElementById('copy-msg');
 
@@ -551,6 +567,7 @@
       const outTime = (formatDateTime(p.checkedOutAt) || '').toLowerCase();
       return p.id.toLowerCase().includes(query)
         || p.name.toLowerCase().includes(query)
+        || (p.company || '').toLowerCase().includes(query)
         || (p.chamberNumber || '').toLowerCase().includes(query)
         || time.includes(query)
         || outTime.includes(query);
@@ -571,7 +588,8 @@
       <tr>
         <td><input type="checkbox" class="select-box export-cb" data-id="${p.id}" ${isChecked}></td>
         <td class="mono">${p.id}</td>
-        <td>${p.name}</td>
+        <td><b>${p.name}</b></td>
+        <td>${p.company || '—'}</td>
         <td>Elfogadva</td>
         <td class="mono ${p.chamberNumber ? '' : 'missing'}">${p.chamberNumber ? p.chamberNumber : '—'}</td>
         <td class="${checkinTime ? '' : 'missing'}">${checkinTime ? checkinTime : '—'}</td>
@@ -597,7 +615,6 @@
     });
   }
 
-  // Kiléptetés a Táblázat fülről: a kijelölt (és látható) sorokat kiléptetjük, a belépés idejét megtartjuk
   const exportOutBtn = document.getElementById('export-out-btn');
   const exportMsg = document.getElementById('export-msg');
   function showExportMsg(text){
@@ -632,14 +649,13 @@
 
   copyBtn.addEventListener('click', async () => {
     const trained = participants.filter(p => p.trainingAccepted);
-    const header = ['Kód', 'Név', 'Továbbképzés', 'Kamarai szám', 'Belépés ideje', 'Kilépés ideje'];
-    const rows = trained.map(p => [p.id, p.name, 'Elfogadva', p.chamberNumber || '', formatDateTime(p.checkedInAt) || '', formatDateTime(p.checkedOutAt) || '']);
+    const header = ['Kód', 'Név', 'Cég', 'Továbbképzés', 'Kamarai szám', 'Belépés ideje', 'Kilépés ideje'];
+    const rows = trained.map(p => [p.id, p.name, p.company || '', 'Elfogadva', p.chamberNumber || '', formatDateTime(p.checkedInAt) || '', formatDateTime(p.checkedOutAt) || '']);
     const tsv = [header, ...rows].map(r => r.join('\t')).join('\n');
 
     try {
       await navigator.clipboard.writeText(tsv);
     } catch (e) {
-      // Vágólap API nem elérhető (pl. nem HTTPS) - kijelöljük a táblázatot helyette
       const range = document.createRange();
       range.selectNode(document.getElementById('export-table'));
       window.getSelection().removeAllRanges();
@@ -660,7 +676,7 @@
     const listEl = document.getElementById('plist');
     listEl.innerHTML = '';
 
-    const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
+    const filtered = participants.filter(p => p.name.toLowerCase().includes(q) || (p.company || '').toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
     selectAllCb.checked = filtered.length > 0 && filtered.every(p => selectedIds.has(p.id));
 
     const visible = filtered.slice(0, visibleCount);
@@ -679,7 +695,10 @@
       row.innerHTML = `
         <input type="checkbox" class="select-box row-cb" ${isChecked}>
         <div class="qr" id="qr-${p.id}" title="Nagyítás / letöltés"></div>
-        <div class="info"><b title="${p.name}">${p.name}</b><small>${p.id}</small></div>
+        <div class="info">
+          <b title="${p.name}">${p.name}</b>
+          <span>${p.company ? p.company + ' | ' : ''}${p.id}</span>
+        </div>
         <div class="badges">
           <span class="badge ${p.checkedIn ? 'in' : 'out'}">${p.checkedIn ? 'BENN' : 'VÁR'}</span>
           ${p.trainingAccepted ? '<span class="badge train">TOVÁBBKÉPZÉS</span>' : ''}
@@ -692,7 +711,7 @@
       const qrElement = document.getElementById(`qr-${p.id}`);
       try { new QRCode(qrElement, { text: p.id, width: 50, height: 50 }); } catch(e){}
 
-      qrElement.onclick = () => openQrModal(p.name, p.id);
+      qrElement.onclick = () => openQrModal(p.name, p.company, p.id);
 
       row.querySelector('.row-cb').onchange = (e) => {
         if (e.target.checked) selectedIds.add(p.id);
@@ -718,10 +737,50 @@
     renderExport();
   }
 
-  // Kivetítő fül: kereső + több/kevesebb mutatás (20-asával)
+  // Kivetítő fül
   let displayVisibleCount = PAGE_STEP;
   let filterCheckedIn = false;
   let filterTrained = false;
+
+  const chipIn = document.getElementById('chip-in');
+  const chipTrained = document.getElementById('chip-trained');
+
+  chipIn.addEventListener('click', () => {
+    filterCheckedIn = !filterCheckedIn;
+    chipIn.classList.toggle('active', filterCheckedIn);
+    renderDisplay();
+  });
+
+  chipTrained.addEventListener('click', () => {
+    filterTrained = !filterTrained;
+    chipTrained.classList.toggle('active', filterTrained);
+    renderDisplay();
+  });
+
+  document.getElementById('display-search').addEventListener('input', renderDisplay);
+  document.getElementById('export-search').addEventListener('input', renderExport);
+  document.getElementById('search').addEventListener('input', render);
+
+  document.getElementById('more-btn').addEventListener('click', () => {
+    visibleCount += PAGE_STEP;
+    render();
+  });
+  document.getElementById('less-btn').addEventListener('click', () => {
+    visibleCount = PAGE_STEP;
+    render();
+  });
+
+  const displayMoreBtn = document.getElementById('display-more-btn');
+  const displayLessBtn = document.getElementById('display-less-btn');
+
+  displayMoreBtn.addEventListener('click', () => {
+    displayVisibleCount += PAGE_STEP;
+    renderDisplay();
+  });
+  displayLessBtn.addEventListener('click', () => {
+    displayVisibleCount = PAGE_STEP;
+    renderDisplay();
+  });
 
   function renderDisplay() {
     document.getElementById('stat-total').textContent = participants.length;
@@ -730,80 +789,47 @@
 
     const query = document.getElementById('display-search').value.trim().toLowerCase();
     const filtered = participants.filter(p => {
-      if (filterCheckedIn && !p.checkedIn) return false;
-      if (filterTrained && !p.trainingAccepted) return false;
+      const matchIn = !filterCheckedIn || p.checkedIn;
+      const matchTrained = !filterTrained || p.trainingAccepted;
+      if (!matchIn || !matchTrained) return false;
+
       if (!query) return true;
-      const status = p.checkedIn ? 'benn' : 'vár';
-      const training = p.trainingAccepted ? 'elfogadva' : '';
-      const time = (p.checkedIn && p.checkedInAt) ? new Date(p.checkedInAt).toLocaleTimeString().toLowerCase() : '';
+      const inTime = (formatDateTime(p.checkedInAt) || '').toLowerCase();
+      const outTime = (formatDateTime(p.checkedOutAt) || '').toLowerCase();
+      const statusText = p.checkedIn ? 'benn' : 'vár';
       return p.id.toLowerCase().includes(query)
         || p.name.toLowerCase().includes(query)
-        || status.includes(query)
-        || training.includes(query)
-        || time.includes(query);
+        || (p.company || '').toLowerCase().includes(query)
+        || statusText.includes(query)
+        || inTime.includes(query)
+        || outTime.includes(query);
     });
+
     const visible = filtered.slice(0, displayVisibleCount);
-
     const tbody = document.getElementById('display-tbody');
-    tbody.innerHTML = visible.map(p => `
-      <tr class="${p.trainingAccepted ? 'trained' : ''}">
-        <td><code>${p.id}</code></td>
-        <td><b>${p.name}</b></td>
-        <td><span class="badge ${p.checkedIn ? 'in' : 'out'}">${p.checkedIn ? 'BENN' : 'VÁR'}</span></td>
-        <td>${p.trainingAccepted ? '<span class="badge train">ELFOGADVA</span>' : '—'}</td>
-        <td>${(p.checkedIn && p.checkedInAt) ? new Date(p.checkedInAt).toLocaleTimeString() : '—'}</td>
-      </tr>
-    `).join('');
+    const emptyEl = document.getElementById('display-empty');
 
-    document.getElementById('display-empty').style.display = filtered.length ? 'none' : 'block';
+    emptyEl.style.display = filtered.length ? 'none' : 'block';
+    displayMoreBtn.classList.toggle('hidden', displayVisibleCount >= filtered.length);
+    displayLessBtn.classList.toggle('hidden', displayVisibleCount <= PAGE_STEP);
+    displayMoreBtn.textContent = `Továbbiak betöltése (${Math.min(displayVisibleCount, filtered.length)} / ${filtered.length})`;
 
-    const moreBtn = document.getElementById('display-more-btn');
-    const lessBtn = document.getElementById('display-less-btn');
-    moreBtn.textContent = `Továbbiak betöltése (${Math.min(displayVisibleCount, filtered.length)} / ${filtered.length})`;
-    moreBtn.classList.toggle('hidden', displayVisibleCount >= filtered.length);
-    lessBtn.classList.toggle('hidden', displayVisibleCount <= PAGE_STEP);
+    tbody.innerHTML = visible.map(p => {
+      const timeDisplay = p.checkedIn
+        ? (formatDateTime(p.checkedInAt) || '—')
+        : (p.checkedOutAt ? `Kilépett: ${formatDateTime(p.checkedOutAt)}` : '—');
+      return `
+        <tr class="${p.trainingAccepted ? 'trained' : ''}">
+          <td class="mono">${p.id}</td>
+          <td><b>${p.name}</b></td>
+          <td>${p.company || '—'}</td>
+          <td><span class="badge ${p.checkedIn ? 'in' : 'out'}">${p.checkedIn ? 'BENN' : 'VÁR'}</span></td>
+          <td>${p.trainingAccepted ? '<span class="badge train">ELFOGADVA</span>' : '—'}</td>
+          <td>${timeDisplay}</td>
+        </tr>
+      `;
+    }).join('');
   }
-
-  document.getElementById('display-more-btn').addEventListener('click', () => {
-    displayVisibleCount += PAGE_STEP;
-    renderDisplay();
-  });
-  document.getElementById('display-less-btn').addEventListener('click', () => {
-    displayVisibleCount = Math.max(PAGE_STEP, displayVisibleCount - PAGE_STEP);
-    renderDisplay();
-  });
-  document.getElementById('display-search').addEventListener('input', () => {
-    displayVisibleCount = PAGE_STEP;
-    renderDisplay();
-  });
-
-  document.getElementById('chip-in').addEventListener('click', (e) => {
-    filterCheckedIn = !filterCheckedIn;
-    e.currentTarget.classList.toggle('active', filterCheckedIn);
-    displayVisibleCount = PAGE_STEP;
-    renderDisplay();
-  });
-  document.getElementById('chip-trained').addEventListener('click', (e) => {
-    filterTrained = !filterTrained;
-    e.currentTarget.classList.toggle('active', filterTrained);
-    displayVisibleCount = PAGE_STEP;
-    renderDisplay();
-  });
-
-  document.getElementById('more-btn').addEventListener('click', () => {
-    visibleCount += PAGE_STEP;
-    render();
-  });
-  document.getElementById('less-btn').addEventListener('click', () => {
-    visibleCount = Math.max(PAGE_STEP, visibleCount - PAGE_STEP);
-    render();
-  });
-
-  document.getElementById('search').addEventListener('input', () => {
-    visibleCount = PAGE_STEP;
-    render();
-  });
-  document.getElementById('export-search').addEventListener('input', renderExport);
 </script>
 </body>
 </html>
