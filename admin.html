@@ -270,31 +270,28 @@
     return d.toLocaleTimeString('hu-HU');
   }
 
-  // Segédfüggvény a szöveg több sorba töréséhez Canvasen (a torzulás megszüntetésére)
-  function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-    if (!text) return y;
+  // Segédfüggvény a szöveg többsoros töréséhez és a pontos sorok kiszámításához
+  function getLines(ctx, text, maxWidth) {
+    if (!text) return [];
     const words = text.split(' ');
+    const lines = [];
     let line = '';
-    let currentY = y;
 
     for (let n = 0; n < words.length; n++) {
       const testLine = line + words[n] + ' ';
       const metrics = ctx.measureText(testLine);
-      const testWidth = metrics.width;
-      
-      if (testWidth > maxWidth && n > 0) {
-        ctx.fillText(line.trim(), x, currentY);
+      if (metrics.width > maxWidth && n > 0) {
+        lines.push(line.trim());
         line = words[n] + ' ';
-        currentY += lineHeight;
       } else {
         line = testLine;
       }
     }
-    ctx.fillText(line.trim(), x, currentY);
-    return currentY;
+    lines.push(line.trim());
+    return lines;
   }
 
-  // ---- QR kártya kép generálása (Fehér háttér, torzulásmentes automatikus többsoros cégnévvel) ----
+  // ---- QR kártya kép generálása (Dinamikus kártyamagasság hézagmentes aljjal) ----
 
   function roundRect(ctx, x, y, w, h, r){
     ctx.beginPath();
@@ -325,13 +322,26 @@
     const qrCanvas = tempDiv.querySelector('canvas');
     const qrImg = tempDiv.querySelector('img');
 
-    // Megnövelt magasság a kényelmes több soros szövegnek
-    const W = 380, H = 520;
+    // Ideiglenes canvas a szövegek beméréséhez
+    const measureCanvas = document.createElement('canvas');
+    const mCtx = measureCanvas.getContext('2d');
+    mCtx.font = '600 16px "IBM Plex Mono", monospace';
+
+    const W = 380;
+    const paddingBottom = 28;
+    const lineHeight = 22;
+    const companyText = company || '—';
+    const lines = getLines(mCtx, companyText, W - 50);
+
+    // Kártya magasságának dinamikus kiszámítása a sorok száma alapján
+    const startCompanyY = 360;
+    const H = startCompanyY + (lines.length * lineHeight) + paddingBottom;
+
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
 
-    // Fehér alapháttér és keret
+    // Fehér alapháttér és finom keret
     ctx.fillStyle = '#ffffff';
     roundRect(ctx, 0, 0, W, H, 20); ctx.fill();
     ctx.strokeStyle = '#e0e0e0'; ctx.lineWidth = 2;
@@ -343,7 +353,7 @@
     ctx.textAlign = 'center';
     ctx.fillText(name, W / 2, 46);
 
-    // Azonosító (Sötétszürke felirat a név alatt)
+    // Azonosító
     ctx.fillStyle = '#555555';
     ctx.font = '500 14px "IBM Plex Mono", monospace';
     ctx.fillText('Azonosító: ' + code, W / 2, 70);
@@ -361,10 +371,12 @@
       ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
     }
 
-    // CÉGNÉV A QR KÓD ALATT (Automatikus sorra töréssel a torzulás ellen)
+    // CÉGNÉV A QR KÓD ALATT (Dinamikus elrendezés üres hézag nélkül)
     ctx.fillStyle = '#14171A';
     ctx.font = '600 16px "IBM Plex Mono", monospace';
-    wrapText(ctx, company || '—', W / 2, 365, W - 50, 22);
+    lines.forEach((line, index) => {
+      ctx.fillText(line, W / 2, startCompanyY + (index * lineHeight));
+    });
 
     document.body.removeChild(tempDiv);
     return canvas.toDataURL('image/png');
