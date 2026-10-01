@@ -91,13 +91,13 @@
   #export-table td.missing{ color:var(--text-dim); }
   .empty-note{ color:var(--text-dim); font-size:.82rem; padding:14px 4px; }
 
-  /* MÓDOSÍTOTT FEHÉR KÁRTYA STÍLUS A MODALBAN */
+  /* FEHÉR KÁRTYA STÍLUS A MODALBAN */
   .modal-backdrop{ position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); display:none; align-items:center; justify-content:center; z-index:999; backdrop-filter:blur(4px); }
   .modal-backdrop.active{ display:flex; }
   .modal-card{ background:#ffffff; border:1px solid #e0e0e0; padding:24px; border-radius:20px; text-align:center; max-width:340px; width:90%; box-shadow:0 20px 40px rgba(0,0,0,0.6); color:#14171A; }
   .modal-card h3{ margin:0 0 2px 0; font-family:'Fraunces', serif; font-size:1.5rem; color:#14171A; word-break:break-word; }
   .modal-card p.modal-code-text{ margin:0 0 14px 0; color:#555555; font-size:.9rem; font-weight:500; }
-  .modal-card .company-sub{ color:#14171A; font-size:1.15rem; margin-top:14px; font-weight:600; font-family:'IBM Plex Mono', monospace; word-break:break-word; }
+  .modal-card .company-sub{ color:#14171A; font-size:1.1rem; margin-top:14px; font-weight:600; font-family:'IBM Plex Mono', monospace; word-break:break-word; }
   .modal-qr{ background:#fff; padding:10px; border-radius:12px; display:inline-block; }
   .modal-actions{ display:flex; gap:10px; margin-top:18px; }
   .modal-actions button{ flex:1; }
@@ -211,7 +211,7 @@
   </section>
 </div>
 
-<!-- ÚJ ELRENDEZÉSŰ, FEHÉR ELŐNÉZETI MODAL -->
+<!-- ELŐNÉZETI MODAL -->
 <div class="modal-backdrop" id="qr-modal">
   <div class="modal-card">
     <h3 id="modal-name">Résztvevő Neve</h3>
@@ -270,7 +270,31 @@
     return d.toLocaleTimeString('hu-HU');
   }
 
-  // ---- QR kártya kép generálása (Tiszta fehér háttér, fekete feliratok, Cég alul) ----
+  // Segédfüggvény a szöveg több sorba töréséhez Canvasen (a torzulás megszüntetésére)
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    if (!text) return y;
+    const words = text.split(' ');
+    let line = '';
+    let currentY = y;
+
+    for (let n = 0; n < words.length; n++) {
+      const testLine = line + words[n] + ' ';
+      const metrics = ctx.measureText(testLine);
+      const testWidth = metrics.width;
+      
+      if (testWidth > maxWidth && n > 0) {
+        ctx.fillText(line.trim(), x, currentY);
+        line = words[n] + ' ';
+        currentY += lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    ctx.fillText(line.trim(), x, currentY);
+    return currentY;
+  }
+
+  // ---- QR kártya kép generálása (Fehér háttér, torzulásmentes automatikus többsoros cégnévvel) ----
 
   function roundRect(ctx, x, y, w, h, r){
     ctx.beginPath();
@@ -301,34 +325,35 @@
     const qrCanvas = tempDiv.querySelector('canvas');
     const qrImg = tempDiv.querySelector('img');
 
-    const W = 380, H = 480;
+    // Megnövelt magasság a kényelmes több soros szövegnek
+    const W = 380, H = 520;
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
 
-    // Fehér alapháttér és finom keret
+    // Fehér alapháttér és keret
     ctx.fillStyle = '#ffffff';
     roundRect(ctx, 0, 0, W, H, 20); ctx.fill();
     ctx.strokeStyle = '#e0e0e0'; ctx.lineWidth = 2;
     roundRect(ctx, 1, 1, W - 2, H - 2, 20); ctx.stroke();
 
-    // Név (Nagy, fekete)
+    // Név (Fekete)
     ctx.fillStyle = '#14171A';
-    ctx.font = '600 26px Fraunces, serif';
+    ctx.font = '600 24px Fraunces, serif';
     ctx.textAlign = 'center';
-    ctx.fillText(name, W / 2, 48, W - 40);
+    ctx.fillText(name, W / 2, 46);
 
     // Azonosító (Sötétszürke felirat a név alatt)
     ctx.fillStyle = '#555555';
-    ctx.font = '500 15px "IBM Plex Mono", monospace';
-    ctx.fillText('Azonosító: ' + code, W / 2, 74);
+    ctx.font = '500 14px "IBM Plex Mono", monospace';
+    ctx.fillText('Azonosító: ' + code, W / 2, 70);
 
     // QR-kód elhelyezése
-    const boxSize = 250, boxX = (W - boxSize) / 2, boxY = 92;
+    const boxSize = 240, boxX = (W - boxSize) / 2, boxY = 88;
     ctx.fillStyle = '#ffffff';
     roundRect(ctx, boxX, boxY, boxSize, boxSize, 12); ctx.fill();
 
-    const qrSize = 240, qrX = (W - qrSize) / 2, qrY = boxY + (boxSize - qrSize) / 2;
+    const qrSize = 230, qrX = (W - qrSize) / 2, qrY = boxY + (boxSize - qrSize) / 2;
     if (qrCanvas) {
       ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
     } else if (qrImg) {
@@ -336,10 +361,10 @@
       ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
     }
 
-    // CÉGNÉV A QR KÓD ALATT (Fekete, nagyobb méret)
+    // CÉGNÉV A QR KÓD ALATT (Automatikus sorra töréssel a torzulás ellen)
     ctx.fillStyle = '#14171A';
-    ctx.font = '600 21px "IBM Plex Mono", monospace';
-    ctx.fillText(company || '—', W / 2, 385, W - 40);
+    ctx.font = '600 16px "IBM Plex Mono", monospace';
+    wrapText(ctx, company || '—', W / 2, 365, W - 50, 22);
 
     document.body.removeChild(tempDiv);
     return canvas.toDataURL('image/png');
