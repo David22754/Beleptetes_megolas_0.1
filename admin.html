@@ -267,7 +267,7 @@
     return d.toLocaleTimeString('hu-HU');
   }
 
-  // ---- QR kártya kép generálása (Cégnévvel kibővítve) és letöltése ----
+  // ---- QR kártya kép generálása (Fehér háttér, fekete szövegek, cégnév alul) ----
 
   function roundRect(ctx, x, y, w, h, r){
     ctx.beginPath();
@@ -298,40 +298,45 @@
     const qrCanvas = tempDiv.querySelector('canvas');
     const qrImg = tempDiv.querySelector('img');
 
-    const W = 340, H = 450;
+    const W = 380, H = 480;
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle = '#1D2126';
-    roundRect(ctx, 0, 0, W, H, 20); ctx.fill();
-    ctx.strokeStyle = '#333A42'; ctx.lineWidth = 1;
-    roundRect(ctx, 0.5, 0.5, W - 1, H - 1, 20); ctx.stroke();
-
-    ctx.fillStyle = '#F1EEE7';
-    ctx.font = '600 21px Fraunces, serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(name, W / 2, 45, W - 40);
-
-    ctx.fillStyle = '#E3A857';
-    ctx.font = '500 13px "IBM Plex Mono", monospace';
-    ctx.fillText(company || '—', W / 2, 65, W - 40);
-
-    ctx.fillStyle = '#9BA3AC';
-    ctx.font = '400 13px "IBM Plex Mono", monospace';
-    ctx.fillText('Azonosító: ' + code, W / 2, 85);
-
-    const boxSize = 250, boxX = (W - boxSize) / 2, boxY = 100;
+    // Teljes keret és fehér háttér
     ctx.fillStyle = '#ffffff';
-    roundRect(ctx, boxX, boxY, boxSize, boxSize, 14); ctx.fill();
+    roundRect(ctx, 0, 0, W, H, 20); ctx.fill();
+    ctx.strokeStyle = '#e0e0e0'; ctx.lineWidth = 2;
+    roundRect(ctx, 1, 1, W - 2, H - 2, 20); ctx.stroke();
 
-    const qrSize = 226, qrX = (W - qrSize) / 2, qrY = boxY + (boxSize - qrSize) / 2;
+    // Név (Nagyobb, fekete)
+    ctx.fillStyle = '#14171A';
+    ctx.font = '600 26px Fraunces, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(name, W / 2, 48, W - 40);
+
+    // Azonosító (Sötétszürke felirat a név alatt)
+    ctx.fillStyle = '#555555';
+    ctx.font = '500 15px "IBM Plex Mono", monospace';
+    ctx.fillText('Azonosító: ' + code, W / 2, 74);
+
+    // QR-kód doboz
+    const boxSize = 250, boxX = (W - boxSize) / 2, boxY = 92;
+    ctx.fillStyle = '#ffffff';
+    roundRect(ctx, boxX, boxY, boxSize, boxSize, 12); ctx.fill();
+
+    const qrSize = 240, qrX = (W - qrSize) / 2, qrY = boxY + (boxSize - qrSize) / 2;
     if (qrCanvas) {
       ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
     } else if (qrImg) {
       await new Promise(res => { if (qrImg.complete) res(); else qrImg.onload = res; });
       ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
     }
+
+    // Cégnév a QR-kód alatt (Kiemelt fekete szöveg)
+    ctx.fillStyle = '#14171A';
+    ctx.font = '600 20px "IBM Plex Mono", monospace';
+    ctx.fillText(company || '—', W / 2, 382, W - 40);
 
     document.body.removeChild(tempDiv);
     return canvas.toDataURL('image/png');
@@ -376,7 +381,7 @@
     inputCompany.value = '';
   });
 
-  // Drag and Drop CSV / TXT Feldolgozás (Név, Cég támogatásával)
+  // Drag and Drop CSV / TXT Feldolgozás (Név, Cég)
   const dropZone = document.getElementById('drop-zone');
   const csvFile = document.getElementById('csv-file');
   const importResult = document.getElementById('import-result');
@@ -553,7 +558,7 @@
     }
   };
 
-  // Táblázat fül: Elfogadott továbbképzésűek Cég oszloppal
+  // Táblázat fül
   const copyBtn = document.getElementById('copy-btn');
   const copyMsg = document.getElementById('copy-msg');
 
