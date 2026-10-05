@@ -104,14 +104,47 @@
   .modal-actions .btn.ghost{ color:#14171A; border-color:#ccc; }
   .dl-msg{ display:block; font-size:.72rem; color:var(--good); margin-top:10px; opacity:0; transition:opacity .2s; }
   .dl-msg.show{ opacity:1; }
+
+  #login-screen{
+    position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center;
+    padding:20px; z-index:1000;
+  }
+  #login-screen.hidden{ display:none; }
+  .login-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:28px;
+    max-width:320px; width:100%; box-shadow:0 20px 40px rgba(0,0,0,0.5);
+  }
+  .login-card h2{ margin:0 0 18px; font-family:'Fraunces', serif; font-size:1.4rem; text-align:center; }
+  .login-card input[type=text], .login-card input[type=password]{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border); color:var(--text);
+    padding:12px; border-radius:8px; font-family:inherit; margin-bottom:12px;
+  }
+  .login-card button{
+    width:100%; background:var(--accent); color:var(--accent-ink); border:none; border-radius:8px;
+    padding:12px; font-weight:600; cursor:pointer; font-family:inherit;
+  }
+  .login-error{ color:var(--bad); font-size:.8rem; text-align:center; margin:-4px 0 12px; min-height:1em; }
 </style>
 </head>
 <body>
 
-<div id="app">
+<div id="login-screen">
+  <div class="login-card">
+    <h2>Belépés</h2>
+    <div class="login-error" id="login-error"></div>
+    <input type="text" id="login-user" placeholder="Felhasználónév" autocomplete="username">
+    <input type="password" id="login-pass" placeholder="Jelszó" autocomplete="current-password">
+    <button id="login-btn">Belépés</button>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
   <header>
     <h1>Beléptető Központ</h1>
-    <div style="color:var(--text-dim); font-size:.8rem;" id="status-label">Firebase Csatlakozás...</div>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <div style="color:var(--text-dim); font-size:.8rem;" id="status-label">Firebase Csatlakozás...</div>
+      <button class="btn small ghost" id="logout-btn">Kijelentkezés</button>
+    </div>
   </header>
 
   <nav class="tabs">
@@ -228,7 +261,13 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="module">
+  // ---- Valódi bejelentkezés: Firebase Authentication (e-mail + jelszó) ----
+  // A jogosultság-ellenőrzés a Firebase szerverén történik, nem a böngészőben,
+  // ezért ez nem kerülhető meg a forráskód megnézésével.
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import {
+    getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
   import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -242,7 +281,76 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
-  document.getElementById('status-label').textContent = "● Firebase Online";
+  const auth = getAuth(app);
+
+  const loginScreen = document.getElementById('login-screen');
+  const appEl = document.getElementById('app');
+  const loginUser = document.getElementById('login-user');
+  const loginPass = document.getElementById('login-pass');
+  const loginError = document.getElementById('login-error');
+  const loginBtn = document.getElementById('login-btn');
+
+  function showApp(){
+    loginScreen.classList.add('hidden');
+    appEl.style.display = '';
+  }
+  function showLogin(){
+    appEl.style.display = 'none';
+    loginScreen.classList.remove('hidden');
+    loginUser.focus();
+  }
+
+  // A Firebase Authentication email-formátumot vár, a felhasználónevet ezért
+  // belül egy "álcázott" e-mail címmé alakítjuk (pl. "admin" -> "admin@belepteto-app.local").
+  // Ezt a pontos címet kell majd megadni a Firebase konzolban a felhasználó létrehozásakor.
+  function usernameToPseudoEmail(username){
+    return username.trim().toLowerCase().replace(/\s+/g, '') + '@belepteto-app.local';
+  }
+
+  async function tryLogin(){
+    loginError.textContent = '';
+    loginBtn.disabled = true;
+    const username = loginUser.value.trim();
+    try {
+      if (!username) throw new Error('empty');
+      await signInWithEmailAndPassword(auth, usernameToPseudoEmail(username), loginPass.value);
+      // a tényleges megjelenítést az onAuthStateChanged végzi
+    } catch (e) {
+      loginError.textContent = 'Hibás felhasználónév vagy jelszó.';
+      loginPass.value = '';
+      loginPass.focus();
+    }
+    loginBtn.disabled = false;
+  }
+
+  loginBtn.addEventListener('click', tryLogin);
+  document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+  [loginUser, loginPass].forEach(el => {
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); tryLogin(); } });
+  });
+
+  // Firestore-feliratkozás csak sikeres bejelentkezés UTÁN indul,
+  // így a résztvevők adatai meg sem érkeznek a böngészőbe belépés nélkül
+  // (feltéve, hogy a Firestore Security Rules is auth-hoz köti az olvasást).
+  let unsubscribeParticipants = null;
+
+  onAuthStateChanged(auth, (user) => {
+    if (user){
+      showApp();
+      document.getElementById('status-label').textContent = "● Firebase Online — " + (user.email || '').split('@')[0];
+      if (!unsubscribeParticipants){
+        unsubscribeParticipants = onSnapshot(collection(db, "participants"), (snapshot) => {
+          participants = [];
+          snapshot.forEach((doc) => participants.push({ id: doc.id, ...doc.data() }));
+          render();
+        });
+      }
+    } else {
+      if (unsubscribeParticipants){ unsubscribeParticipants(); unsubscribeParticipants = null; }
+      participants = [];
+      showLogin();
+    }
+  });
 
   var participants = [];
   var selectedIds = new Set();
@@ -255,12 +363,6 @@
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById('view-' + btn.dataset.view).classList.add('active');
     });
-  });
-
-  onSnapshot(collection(db, "participants"), (snapshot) => {
-    participants = [];
-    snapshot.forEach((doc) => participants.push({ id: doc.id, ...doc.data() }));
-    render();
   });
 
   function formatDateTime(iso){
